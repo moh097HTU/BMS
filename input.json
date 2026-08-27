@@ -1,0 +1,10 @@
+{
+  "customer": {
+    "name": "John Smith",
+    "email": "john.smith@example.com",
+    "phone": "+33 6 12 34 56 78"
+  },
+  "notes": [
+    "Send the document to 10 Avenue des Champs-Élysées, Paris."
+  ]
+}

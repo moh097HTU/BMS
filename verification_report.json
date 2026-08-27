@@ -1,0 +1,237 @@
+{
+  "eplan_point_records": 1783,
+  "excel_real_points": 921,
+  "matched_full_tuple": 0,
+  "extra_in_eplan": 1783,
+  "missing_from_eplan": 921,
+  "point_tag_vocab_shared": 72,
+  "point_tag_vocab_eplan_only": 112,
+  "point_tag_vocab_excel_only": 70,
+  "extra_sample": [
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-08",
+      "supply air differantial pressure sensor"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "return air temperature"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "supply air differantial pressure sensor"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "return air humidity"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "supplyair humidity"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "supply air temperature"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "return fan vfd speed feedback"
+    ],
+    [
+      "ddc 4",
+      "vrf air handling unit",
+      "ahu-hc-09",
+      "supply fan vfd speed feedback"
+    ],
+    [
+      "ddc 4",
+      "pressurization air",
+      "pf-hc-04",
+      "air differantial pressure sensor"
+    ],
+    [
+      "ddc 22",
+      "fahu-l7-03",
+      "fahu-typee",
+      "exhaust fan start/stop command"
+    ],
+    [
+      "ddc 22",
+      "fahu-l7-03",
+      "fahu-typee",
+      "exhaust air damper open/close command & status"
+    ],
+    [
+      "ddc 22",
+      "fahu-l7-03",
+      "fahu-typee",
+      "fresh air damper open/close command & status"
+    ],
+    [
+      "ddc 22",
+      "fahu-l7-02",
+      "fahu-typee",
+      "supply fan start/stop command"
+    ],
+    [
+      "ddc 22",
+      "fahu-l7-02",
+      "fahu-typee",
+      "heater start/stop command"
+    ],
+    [
+      "ddc 22",
+      "fahu-l7-02",
+      "fahu-typee",
+      "exhaust fan start/stop command"
+    ]
+  ],
+  "missing_sample": [
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "fire alarm signal"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "fresh air damper control"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "mixed air damper control"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "fresh air temperature"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "mixed air temperature"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "pre-filter status"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "bag filter status"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "2-way valve control"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "supply fan air flow status"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "supply fan on/off status"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "supply fan start/stop command"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "supply fan trip alarm"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "return air temperature"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "supply air temperature"
+    ],
+    [
+      "ddc 1",
+      "ahu-(type c)",
+      "ahu-b1-01",
+      "return air duct smoke alarm"
+    ]
+  ],
+  "legacy_ddc_page_variants": {
+    "ddc 22": [
+      "DDC 22  - Level 07",
+      "DDC 22  -Level 7"
+    ],
+    "ddc 5": [
+      "DDC 5 - Lower Ground-P2-2",
+      "DDC 5 - RF-2"
+    ],
+    "ddc 1": [
+      "DDC 1 - GF-1",
+      "DDC 1 Technical Basement"
+    ],
+    "ddc 7": [
+      "DDC 7 - Ground- P1",
+      "DDC 7 -Pump Room"
+    ],
+    "ddc 18": [
+      "DDC 18  - Level 04",
+      "DDC 18  -Level 4"
+    ],
+    "ddc 21": [
+      "DDC 21  - Level 07",
+      "DDC 21  -Level 7"
+    ],
+    "ddc 19": [
+      "DDC 19  - Level 05",
+      "DDC 19  -Level 5"
+    ],
+    "ddc 2": [
+      "DDC 2 - Lower Ground-P1-1",
+      "DDC 2 -GF-2"
+    ],
+    "ddc 20": [
+      "DDC 20  - Level 06",
+      "DDC 20  -Level 6"
+    ],
+    "ddc 17": [
+      "DDC 17  - Level 03 -P2",
+      "DDC 17  - Level 3 - P2"
+    ]
+  },
+  "status": "UNRESOLVED"
+}

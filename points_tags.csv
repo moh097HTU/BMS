@@ -1,0 +1,39 @@
+﻿DDC,Equipment Type,Equipment Tag,Point Tag,Full Combined
+DDC 3 - Lower Ground - P1.2,Lighting Control System,,Lighting Switch Start/Stop Command,Lighting Control System Lighting Switch Start/Stop Command
+DDC 3 - Lower Ground - P1.2,Lighting Control System,,Lighting Switch On/Off Status,Lighting Control System Lighting Switch On/Off Status
+DDC 3 - Lower Ground - P1.2,Electrical Vehicle Charging System,,Over-Voltage Alarm,Electrical Vehicle Charging System Over-Voltage Alarm
+DDC 3 - Lower Ground - P1.2,Electrical Vehicle Charging System,,Undervoltage Alarm,Electrical Vehicle Charging System Undervoltage Alarm
+DDC 3 - Lower Ground - P1.2,Electrical Vehicle Charging System,,High Temperature Alarm,Electrical Vehicle Charging System High Temperature Alarm
+DDC 3 - Lower Ground - P1.2,Electrical Vehicle Charging System,,Low Temperature Alarm,Electrical Vehicle Charging System Low Temperature Alarm
+DDC 3 - Lower Ground - P1.2,Electrical Vehicle Charging System,,Charge/Discharge Overload Alarm,Electrical Vehicle Charging System Charge/Discharge Overload Alarm
+DDC 3 - Lower Ground - P1.2,Electrical Vehicle Charging System,,Short Circuit Alarm,Electrical Vehicle Charging System Short Circuit Alarm
+DDC 3 - Lower Ground - P1.2,Auditorium,,General Alarms,Auditorium General Alarms
+DDC 3 - Lower Ground - P1.2,Access Control System,,Panel Trip Alarm,Access Control System Panel Trip Alarm
+DDC 3 - Lower Ground - P1.2,Access Control System,,Panel On/Off Status,Access Control System Panel On/Off Status
+DDC 3 - Lower Ground - P1.2,Auditorium AV System,,General Alarms,Auditorium AV System General Alarms
+DDC 3 - Lower Ground - P1.2,Motorized Damper,,Fire Damper Open/Close Control Signal,Motorized Damper Fire Damper Open/Close Control Signal
+DDC 3 - Lower Ground - P1.2,Motorized Damper,,Fire Damper Open/Close Status,Motorized Damper Fire Damper Open/Close Status
+DDC 3 - Lower Ground - P1.2,Motorized Damper,,Isolation Damper Diff. Pressure Feedback,Motorized Damper Isolation Damper Diff. Pressure Feedback
+DDC 3 - Lower Ground - P1.2,SMDB/ESMDB Panels,(MB-SS-SMDB),Incoming Trip Alarm,SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Trip Alarm
+DDC 3 - Lower Ground - P1.2,SMDB/ESMDB Panels,(MB-SS-SMDB),Incoming On/Off Status,SMDB/ESMDB Panels (MB-SS-SMDB) Incoming On/Off Status
+DDC 3 - Lower Ground - P1.2,SMDB/ESMDB Panels,(MB-SS-SMDB),Incoming Power Fail,SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Power Fail
+DDC 3 - Lower Ground - P1.2,SMDB/ESMDB Panels,(MB-SS-SMDB),Outgoing Trip Alarm,SMDB/ESMDB Panels (MB-SS-SMDB) Outgoing Trip Alarm
+DDC 3 - Lower Ground - P1.2,SMDB/ESMDB Panels,(MB-SS-SMDB),Outgoing On/Off Status,SMDB/ESMDB Panels (MB-SS-SMDB) Outgoing On/Off Status
+DDC 3 - Lower Ground - P1.2,UDB/UPP panel,(MB-LG-UPP2),Incoming Trip Alarm,UDB/UPP panel (MB-LG-UPP2) Incoming Trip Alarm
+DDC 3 - Lower Ground - P1.2,UDB/UPP panel,(MB-LG-UPP2),Incoming On/Off Status,UDB/UPP panel (MB-LG-UPP2) Incoming On/Off Status
+DDC 3 - Lower Ground - P1.2,UDB/UPP panel,(MB-LG-UPP2),Outgoing Trip Alarm,UDB/UPP panel (MB-LG-UPP2) Outgoing Trip Alarm
+DDC 3 - Lower Ground - P1.2,UDB/UPP panel,(MB-LG-UPP2),Outgoing On/Off Status,UDB/UPP panel (MB-LG-UPP2) Outgoing On/Off Status
+DDC 3 - Lower Ground - P1.2,Fire Fighting Panels,,Power Supply Available,Fire Fighting Panels Power Supply Available
+DDC 3 - Lower Ground - P1.2,Fire Fighting Panels,,Control Panel Alarm Status,Fire Fighting Panels Control Panel Alarm Status
+DDC 3 - Lower Ground - P1.2,Fire Fighting Panels,,Manifold Release,Fire Fighting Panels Manifold Release
+DDC 3 - Lower Ground - P1.2,Submersible Pumps,2 Sets (1 Duty & 1 Standby),Pump Start/Stop Command,Submersible Pumps 2 Sets (1 Duty & 1 Standby) Pump Start/Stop Command
+DDC 3 - Lower Ground - P1.2,Submersible Pumps,2 Sets (1 Duty & 1 Standby),Pump On/Off Status,Submersible Pumps 2 Sets (1 Duty & 1 Standby) Pump On/Off Status
+DDC 3 - Lower Ground - P1.2,Submersible Pumps,2 Sets (1 Duty & 1 Standby),Pump Trip Alarm,Submersible Pumps 2 Sets (1 Duty & 1 Standby) Pump Trip Alarm
+DDC 3 - Lower Ground - P1.2,Submersible Pumps,2 Sets (1 Duty & 1 Standby),Pump Dry Run Alarm,Submersible Pumps 2 Sets (1 Duty & 1 Standby) Pump Dry Run Alarm
+DDC 3 - Lower Ground - P1.2,Submersible Pumps,2 Sets (1 Duty & 1 Standby),Level Indicator,Submersible Pumps 2 Sets (1 Duty & 1 Standby) Level Indicator
+DDC 3 - Lower Ground - P1.2,Fuel Transfer Pumps,2 Acting,Pump Start/Stop Command,Fuel Transfer Pumps 2 Acting Pump Start/Stop Command
+DDC 3 - Lower Ground - P1.2,Fuel Transfer Pumps,2 Acting,Pump On/Off Status,Fuel Transfer Pumps 2 Acting Pump On/Off Status
+DDC 3 - Lower Ground - P1.2,Fuel Transfer Pumps,2 Acting,Pump Trip Alarm,Fuel Transfer Pumps 2 Acting Pump Trip Alarm
+DDC 3 - Lower Ground - P1.2,Fuel Transfer Pumps,2 Acting,Pump Auto Status,Fuel Transfer Pumps 2 Acting Pump Auto Status
+DDC 3 - Lower Ground - P1.2,Fuel Transfer Pumps,2 Acting,Dry Run Alarm,Fuel Transfer Pumps 2 Acting Dry Run Alarm
+DDC 3 - Lower Ground - P1.2,Fuel Transfer Pumps,2 Acting,System Pressure,Fuel Transfer Pumps 2 Acting System Pressure

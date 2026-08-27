@@ -1,0 +1,58 @@
+[
+  {
+    "json_path": "$.customer.name",
+    "entity": "John",
+    "entity_type": "GIVEN_NAME",
+    "confidence": 0.9999,
+    "start": 0,
+    "end": 4
+  },
+  {
+    "json_path": "$.customer.name",
+    "entity": " Smith",
+    "entity_type": "SURNAME",
+    "confidence": 0.9965,
+    "start": 4,
+    "end": 10
+  },
+  {
+    "json_path": "$.customer.email",
+    "entity": "john.smith@example.com",
+    "entity_type": "EMAIL",
+    "confidence": 1.0,
+    "start": 0,
+    "end": 22
+  },
+  {
+    "json_path": "$.customer.phone",
+    "entity": "+33 6 12 34 56 78",
+    "entity_type": "PHONE",
+    "confidence": 1.0,
+    "start": 0,
+    "end": 17
+  },
+  {
+    "json_path": "$.notes[0]",
+    "entity": "10",
+    "entity_type": "BUILDING_NUMBER",
+    "confidence": 0.6035,
+    "start": 21,
+    "end": 23
+  },
+  {
+    "json_path": "$.notes[0]",
+    "entity": " Avenue des Champs-Élysées",
+    "entity_type": "STREET_NAME",
+    "confidence": 0.9461,
+    "start": 23,
+    "end": 49
+  },
+  {
+    "json_path": "$.notes[0]",
+    "entity": " Paris",
+    "entity_type": "CITY",
+    "confidence": 0.9997,
+    "start": 50,
+    "end": 56
+  }
+]
