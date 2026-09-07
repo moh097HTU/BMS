@@ -1,0 +1,226 @@
+{
+  "summary": {
+    "raw_findings": 10,
+    "candidate_groups": 5,
+    "final_actionable_issues": 5,
+    "safe_auto_fixes": 4,
+    "manual_or_review_issues": 1,
+    "split_candidate_pairs": 0
+  },
+  "group_analysis": {
+    "groups": [
+      {
+        "group_id": "pair-0001",
+        "relationship": "SAME_POINT_TYPO",
+        "confidence": 0.99,
+        "relationship_reason": "The drawing point name contains an obvious typographic error ('On/Of' instead of 'On/Off') while matching the schedule point completely in scope and function.",
+        "issues": [
+          {
+            "classification": "TYPO_OR_NAMING_ERROR",
+            "source_finding_ids": [
+              "missing-0006",
+              "extra-0001"
+            ],
+            "summary": "Drawing point has typo 'On/Of' instead of 'On/Off'",
+            "recommended_action": "Rename drawing point on page 16DI-1-UP channel DI-4 (ID 724946) to 'Access Control System Panel On/Off Status'.",
+            "suggested_correct_name": "Access Control System Panel On/Off Status",
+            "safe_to_auto_fix": true,
+            "reason": "The difference is a trivial and obvious typo with no ambiguity or impact on engineering intent."
+          }
+        ]
+      },
+      {
+        "group_id": "pair-0002",
+        "relationship": "POSSIBLE_MATCH_NEEDS_REVIEW",
+        "confidence": 0.85,
+        "relationship_reason": "The point names differ in equipment number ('Pumps 2' vs 'Pumps 3'), representing a potential equipment misassignment or mismatch between schedule and drawing.",
+        "issues": [
+          {
+            "classification": "SEMANTIC_MISMATCH",
+            "source_finding_ids": [
+              "missing-0007",
+              "extra-0002"
+            ],
+            "summary": "Equipment identifier mismatch between schedule ('Pumps 2') and drawing ('Pumps 3')",
+            "recommended_action": "Verify control drawings and equipment schedules to determine whether point on page 8DO-1 (ID 725434) belongs to Fuel Transfer Pump 2 or Fuel Transfer Pump 3.",
+            "suggested_correct_name": null,
+            "safe_to_auto_fix": false,
+            "reason": "Equipment numbers designate distinct physical equipment; modifying or linking them requires engineering verification."
+          }
+        ]
+      },
+      {
+        "group_id": "pair-0003",
+        "relationship": "SAME_POINT_TYPO",
+        "confidence": 0.99,
+        "relationship_reason": "The drawing point name contains a clear spelling error ('Systam' instead of 'System') with identical equipment and function identity.",
+        "issues": [
+          {
+            "classification": "TYPO_OR_NAMING_ERROR",
+            "source_finding_ids": [
+              "missing-0008",
+              "extra-0003"
+            ],
+            "summary": "Drawing point has typo 'Systam' instead of 'System'",
+            "recommended_action": "Rename drawing point on page 16DI-1-UP channel DI-1 (ID 724940) to 'Lighting Control System Lighting Switch On/Off Status'.",
+            "suggested_correct_name": "Lighting Control System Lighting Switch On/Off Status",
+            "safe_to_auto_fix": true,
+            "reason": "Trivial spelling error where 'System' is clearly intended without engineering ambiguity."
+          }
+        ]
+      },
+      {
+        "group_id": "pair-0004",
+        "relationship": "SAME_POINT_TYPO",
+        "confidence": 0.99,
+        "relationship_reason": "The drawing point name contains accidental repeated characters ('Dampersss' instead of 'Damper') while matching the schedule point exactly otherwise.",
+        "issues": [
+          {
+            "classification": "TYPO_OR_NAMING_ERROR",
+            "source_finding_ids": [
+              "missing-0009",
+              "extra-0004"
+            ],
+            "summary": "Drawing point has repeated characters 'Dampersss' instead of 'Damper'",
+            "recommended_action": "Rename drawing point on page 16UIO-1-UP channel IO-1 (ID 725280) to 'Motorized Damper Isolation Damper Diff. Pressure Feedback'.",
+            "suggested_correct_name": "Motorized Damper Isolation Damper Diff. Pressure Feedback",
+            "safe_to_auto_fix": true,
+            "reason": "Obvious typing mistake with repeated characters, posing no ambiguity regarding equipment or function."
+          }
+        ]
+      },
+      {
+        "group_id": "pair-0005",
+        "relationship": "SAME_POINT_TYPO",
+        "confidence": 0.99,
+        "relationship_reason": "The drawing point name contains an accidental trailing letter ('Incominge' instead of 'Incoming') with identical panel and signal type.",
+        "issues": [
+          {
+            "classification": "TYPO_OR_NAMING_ERROR",
+            "source_finding_ids": [
+              "missing-0010",
+              "extra-0005"
+            ],
+            "summary": "Drawing point has typo 'Incominge' instead of 'Incoming'",
+            "recommended_action": "Rename drawing point on page 16DI-1-UP channel DI-8 (ID 724951) to 'SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Trip Alarm'.",
+            "suggested_correct_name": "SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Trip Alarm",
+            "safe_to_auto_fix": true,
+            "reason": "Clear typo with trailing 'e' on 'Incoming' with identical panel identification and trip alarm function."
+          }
+        ]
+      }
+    ]
+  },
+  "actionable_issues": [
+    {
+      "group_id": "pair-0001",
+      "relationship": "SAME_POINT_TYPO",
+      "relationship_confidence": 0.99,
+      "relationship_reason": "The drawing point name contains an obvious typographic error ('On/Of' instead of 'On/Off') while matching the schedule point completely in scope and function.",
+      "classification": "TYPO_OR_NAMING_ERROR",
+      "source_finding_ids": [
+        "missing-0006",
+        "extra-0001"
+      ],
+      "safe_to_auto_fix": true,
+      "suggested_correct_name": "Access Control System Panel On/Off Status",
+      "summary": "Drawing point has typo 'On/Of' instead of 'On/Off'",
+      "recommended_action": "Rename drawing point on page 16DI-1-UP channel DI-4 (ID 724946) to 'Access Control System Panel On/Off Status'.",
+      "reason": "The difference is a trivial and obvious typo with no ambiguity or impact on engineering intent.",
+      "schedule_name": "Access Control System Panel On/Off Status",
+      "drawing_name": "Access Control System Panel On/Of Status",
+      "page": "16DI-1-UP",
+      "page_name": "16DI-1-UP",
+      "channel": "DI-4",
+      "function_object_id": "724946"
+    },
+    {
+      "group_id": "pair-0002",
+      "relationship": "POSSIBLE_MATCH_NEEDS_REVIEW",
+      "relationship_confidence": 0.85,
+      "relationship_reason": "The point names differ in equipment number ('Pumps 2' vs 'Pumps 3'), representing a potential equipment misassignment or mismatch between schedule and drawing.",
+      "classification": "SEMANTIC_MISMATCH",
+      "source_finding_ids": [
+        "missing-0007",
+        "extra-0002"
+      ],
+      "safe_to_auto_fix": false,
+      "suggested_correct_name": null,
+      "summary": "Equipment identifier mismatch between schedule ('Pumps 2') and drawing ('Pumps 3')",
+      "recommended_action": "Verify control drawings and equipment schedules to determine whether point on page 8DO-1 (ID 725434) belongs to Fuel Transfer Pump 2 or Fuel Transfer Pump 3.",
+      "reason": "Equipment numbers designate distinct physical equipment; modifying or linking them requires engineering verification.",
+      "schedule_name": "Fuel Transfer Pumps 2 Acting Pump Start/Stop Command",
+      "drawing_name": "Fuel Transfer Pumps 3 Acting Pump Start/Stop Command",
+      "page": "8DO-1",
+      "page_name": "8DO-1",
+      "channel": "DI",
+      "function_object_id": "725434"
+    },
+    {
+      "group_id": "pair-0003",
+      "relationship": "SAME_POINT_TYPO",
+      "relationship_confidence": 0.99,
+      "relationship_reason": "The drawing point name contains a clear spelling error ('Systam' instead of 'System') with identical equipment and function identity.",
+      "classification": "TYPO_OR_NAMING_ERROR",
+      "source_finding_ids": [
+        "missing-0008",
+        "extra-0003"
+      ],
+      "safe_to_auto_fix": true,
+      "suggested_correct_name": "Lighting Control System Lighting Switch On/Off Status",
+      "summary": "Drawing point has typo 'Systam' instead of 'System'",
+      "recommended_action": "Rename drawing point on page 16DI-1-UP channel DI-1 (ID 724940) to 'Lighting Control System Lighting Switch On/Off Status'.",
+      "reason": "Trivial spelling error where 'System' is clearly intended without engineering ambiguity.",
+      "schedule_name": "Lighting Control System Lighting Switch On/Off Status",
+      "drawing_name": "Lighting Control Systam Lighting Switch On/Off Status",
+      "page": "16DI-1-UP",
+      "page_name": "16DI-1-UP",
+      "channel": "DI-1",
+      "function_object_id": "724940"
+    },
+    {
+      "group_id": "pair-0004",
+      "relationship": "SAME_POINT_TYPO",
+      "relationship_confidence": 0.99,
+      "relationship_reason": "The drawing point name contains accidental repeated characters ('Dampersss' instead of 'Damper') while matching the schedule point exactly otherwise.",
+      "classification": "TYPO_OR_NAMING_ERROR",
+      "source_finding_ids": [
+        "missing-0009",
+        "extra-0004"
+      ],
+      "safe_to_auto_fix": true,
+      "suggested_correct_name": "Motorized Damper Isolation Damper Diff. Pressure Feedback",
+      "summary": "Drawing point has repeated characters 'Dampersss' instead of 'Damper'",
+      "recommended_action": "Rename drawing point on page 16UIO-1-UP channel IO-1 (ID 725280) to 'Motorized Damper Isolation Damper Diff. Pressure Feedback'.",
+      "reason": "Obvious typing mistake with repeated characters, posing no ambiguity regarding equipment or function.",
+      "schedule_name": "Motorized Damper Isolation Damper Diff. Pressure Feedback",
+      "drawing_name": "Motorized Dampersss Isolation Damper Diff. Pressure Feedback",
+      "page": "16UIO-1-UP",
+      "page_name": "16UIO-1-UP",
+      "channel": "IO-1",
+      "function_object_id": "725280"
+    },
+    {
+      "group_id": "pair-0005",
+      "relationship": "SAME_POINT_TYPO",
+      "relationship_confidence": 0.99,
+      "relationship_reason": "The drawing point name contains an accidental trailing letter ('Incominge' instead of 'Incoming') with identical panel and signal type.",
+      "classification": "TYPO_OR_NAMING_ERROR",
+      "source_finding_ids": [
+        "missing-0010",
+        "extra-0005"
+      ],
+      "safe_to_auto_fix": true,
+      "suggested_correct_name": "SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Trip Alarm",
+      "summary": "Drawing point has typo 'Incominge' instead of 'Incoming'",
+      "recommended_action": "Rename drawing point on page 16DI-1-UP channel DI-8 (ID 724951) to 'SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Trip Alarm'.",
+      "reason": "Clear typo with trailing 'e' on 'Incoming' with identical panel identification and trip alarm function.",
+      "schedule_name": "SMDB/ESMDB Panels (MB-SS-SMDB) Incoming Trip Alarm",
+      "drawing_name": "SMDB/ESMDB Panels (MB-SS-SMDB) Incominge Trip Alarm",
+      "page": "16DI-1-UP",
+      "page_name": "16DI-1-UP",
+      "channel": "DI-8",
+      "function_object_id": "724951"
+    }
+  ]
+}

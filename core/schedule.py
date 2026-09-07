@@ -1,7 +1,19 @@
+"""
+Excel schedule -> points_tags.csv, the EXPECTED side of the verification.
+
+The workbook encodes meaning in font colour as well as text (see RED below), so
+every sheet is loaded twice: once with data_only=True for computed values and
+once with data_only=False for the styles. Everything here is parameterised -
+call extract()/write_csv() from the CLI, the web API or a test; the module holds
+no configuration of its own.
+
+Errors are raised, never sys.exit()ed, so a web request can turn a wrong
+password or a missing sheet into a clean 400 instead of killing the process.
+"""
+
 import csv
 import io
 import re
-import sys
 import warnings
 
 warnings.filterwarnings("ignore")  # silence openpyxl extension warnings
@@ -9,17 +21,20 @@ warnings.filterwarnings("ignore")  # silence openpyxl extension warnings
 try:
     import msoffcrypto
     import openpyxl
-except ImportError:
-    sys.exit("Missing deps. Run:  pip install msoffcrypto-tool openpyxl")
+except ImportError as exc:  # pragma: no cover - environment problem, not logic
+    raise ImportError(
+        "Missing deps. Run:  pip install msoffcrypto-tool openpyxl") from exc
 
-# ---------------------------------------------------------------------------
-# SETTINGS -- edit these instead of passing command-line arguments
-# ---------------------------------------------------------------------------
-INPUT_FILE = "AI TEST - DDC 3 IRQAH.xlsx"
-PASSWORD = "Estimation"
-SHEET = "Sheet1"
-OUTPUT_FILE = "test_points_tags.csv"
-# ---------------------------------------------------------------------------
+
+class ScheduleError(Exception):
+    """A problem with the workbook itself (bad password, missing sheet)."""
+
+
+# Header of the emitted CSV, in order. core.eplan_verify.REQUIRED_CSV_COLUMNS
+# checks for exactly these names when it loads the file back.
+CSV_COLUMNS = ["DDC", "Equipment Type", "Equipment Tag", "Point Tag",
+               "Full Combined", "QTY", "DI", "DO", "AI", "AO",
+               "Total_DI", "Total_DO", "Total_AI", "Total_AO"]
 
 RED = "FFFF0000"          # font color that marks tags (col C) and meta (col D)
 DDC_RE = re.compile(r"^DDC\s*\d+", re.I)
@@ -73,21 +88,41 @@ def is_summary_row(a_val, d_val):
     return _norm(d_val) in SUMMARY_LABELS
 
 
-def load_sheet(path, password, sheet, data_only):
-    """Return one worksheet, decrypting in memory only if the file is encrypted."""
+def _decrypted_stream(path, password):
+    """Return a BytesIO of the workbook, decrypting in memory if it is encrypted."""
     with open(path, "rb") as fh:
         off = msoffcrypto.OfficeFile(fh)
-        if off.is_encrypted():
-            dec = io.BytesIO()
-            off.load_key(password=password)
-            off.decrypt(dec)
-            source = dec
-        else:
+        if not off.is_encrypted():
             fh.seek(0)
-            source = io.BytesIO(fh.read())
-    wb = openpyxl.load_workbook(source, data_only=data_only)
+            return io.BytesIO(fh.read())
+        if not password:
+            raise ScheduleError("This workbook is encrypted - a password is required.")
+        try:
+            off.load_key(password=password)
+            dec = io.BytesIO()
+            off.decrypt(dec)
+        except Exception as exc:  # msoffcrypto raises several types for a bad key
+            raise ScheduleError("Could not decrypt the workbook - wrong password?") from exc
+        return dec
+
+
+def list_sheets(path, password=None):
+    """Worksheet names, so a caller can offer a sheet picker before extracting."""
+    wb = openpyxl.load_workbook(_decrypted_stream(path, password),
+                                data_only=True, read_only=True)
+    try:
+        return list(wb.sheetnames)
+    finally:
+        wb.close()
+
+
+def load_sheet(path, password, sheet, data_only):
+    """Return one worksheet, decrypting in memory only if the file is encrypted."""
+    wb = openpyxl.load_workbook(_decrypted_stream(path, password),
+                                data_only=data_only)
     if sheet not in wb.sheetnames:
-        sys.exit(f'Sheet "{sheet}" not found. Available: {wb.sheetnames}')
+        raise ScheduleError(
+            f'Sheet "{sheet}" not found. Available: {wb.sheetnames}')
     return wb[sheet]
 
 
@@ -165,19 +200,36 @@ def extract(path, password, sheet):
     return rows
 
 
-def main():
-    rows = extract(INPUT_FILE, PASSWORD, SHEET)
-
-    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8-sig") as fh:
+def write_csv(rows, path):
+    """Write extract()'s rows as the points_tags.csv the verifier reads back."""
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh)
-        w.writerow(["DDC", "Equipment Type", "Equipment Tag", "Point Tag", "Full Combined", "QTY",
-                    "DI", "DO", "AI", "AO",
-                    "Total_DI", "Total_DO", "Total_AI", "Total_AO"])
+        w.writerow(CSV_COLUMNS)
         w.writerows(rows)
+    return path
 
+
+def main(argv=None):
+    import argparse
+    p = argparse.ArgumentParser(description="Excel BMS schedule -> points_tags.csv")
+    p.add_argument("excel", help="the workbook to parse")
+    p.add_argument("-o", "--output", default="points_tags.csv")
+    p.add_argument("-p", "--password", help="password, if the workbook is encrypted")
+    p.add_argument("-s", "--sheet", default="Sheet1")
+    p.add_argument("--list-sheets", action="store_true",
+                   help="print the worksheet names and exit")
+    args = p.parse_args(argv)
+
+    if args.list_sheets:
+        print("\n".join(list_sheets(args.excel, args.password)))
+        return 0
+
+    rows = extract(args.excel, args.password, args.sheet)
+    write_csv(rows, args.output)
     ddcs = len({r[0] for r in rows})
-    print(f"Wrote {len(rows)} point rows across {ddcs} DDCs -> {OUTPUT_FILE}")
+    print(f"Wrote {len(rows)} point rows across {ddcs} DDCs -> {args.output}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

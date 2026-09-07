@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+
+# per-run uploads and artifacts created by the web API
+jobs/
+
+# real credentials - ship users.example.csv instead
+users.csv
+data/
+data/

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en" data-view="login">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BMS Drawing Verifier</title>
+  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚡</text></svg>">
+</head>
+<body>
+
+<!-- ── sign in ───────────────────────────────────────────────────────────── -->
+<section id="view-login" class="view">
+  <div class="login-shell">
+    <div class="login-card">
+      <div class="brand">
+        <span class="brand-mark">⚡</span>
+        <div>
+          <h1>BMS Drawing Verifier</h1>
+          <p class="muted">EPLAN schematic vs. points schedule</p>
+        </div>
+      </div>
+      <form id="login-form" autocomplete="on">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required autofocus>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ── upload ────────────────────────────────────────────────────────────── -->
+<section id="view-upload" class="view">
+  <header class="topbar">
+    <div class="brand small">
+      <span class="brand-mark">⚡</span><strong>BMS Drawing Verifier</strong>
+    </div>
+    <div class="topbar-right">
+      <span id="who" class="muted"></span>
+      <button id="logout" class="btn btn-ghost">Sign out</button>
+    </div>
+  </header>
+
+  <main class="upload-shell">
+    <h2>New verification</h2>
+    <p class="muted lead">Give it the schedule and the drawing. Everything below
+      is checked structurally — nothing is inferred from point names.</p>
+
+    <form id="job-form">
+      <ol class="steps">
+
+        <li class="step" data-step="1">
+          <div class="step-head">
+            <span class="step-num">1</span>
+            <div>
+              <h3>Points schedule</h3>
+              <p class="muted">The Excel workbook, or a points_tags.csv you already built.</p>
+            </div>
+          </div>
+          <div class="drop" data-drop="excel">
+            <input type="file" id="excel" accept=".xlsx,.xlsm,.csv" hidden>
+            <div class="drop-inner">
+              <span class="drop-icon">▤</span>
+              <span class="drop-label">Drop the workbook here, or <button type="button" class="linkish" data-pick="excel">choose a file</button></span>
+              <span class="drop-file" data-file="excel"></span>
+            </div>
+          </div>
+          <div class="step-extra" id="excel-options" hidden>
+            <div class="field">
+              <label for="excel_password">Password <span class="muted">(if protected)</span></label>
+              <input id="excel_password" type="password" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="sheet">Worksheet</label>
+              <div class="row">
+                <select id="sheet"><option value="Sheet1">Sheet1</option></select>
+                <button type="button" id="load-sheets" class="btn btn-ghost">Load sheets</button>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <li class="step" data-step="2">
+          <div class="step-head">
+            <span class="step-num">2</span>
+            <div>
+              <h3>EPLAN drawing</h3>
+              <p class="muted">Pick the project's <code>.edb</code> folder — only
+                <code>Function.eod</code> and <code>Page.eod</code> are read, and
+                only those two are uploaded.</p>
+            </div>
+          </div>
+          <div class="drop" data-drop="edb">
+            <input type="file" id="edb" webkitdirectory directory multiple hidden>
+            <input type="file" id="edb-files" accept=".eod" multiple hidden>
+            <div class="drop-inner">
+              <span class="drop-icon">▤</span>
+              <span class="drop-label">
+                <button type="button" class="linkish" data-pick="edb">Choose the .edb folder</button>
+                <span class="muted"> or <button type="button" class="linkish" data-pick="edb-files">the two .eod files</button></span>
+              </span>
+              <span class="drop-file" data-file="edb"></span>
+            </div>
+          </div>
+        </li>
+
+        <li class="step" data-step="3">
+          <div class="step-head">
+            <span class="step-num">3</span>
+            <div>
+              <h3>Reference drawing <span class="tag tag-optional">optional</span></h3>
+              <p class="muted">A known-good copy of the <em>same</em> project.
+                Without it the terminal (&ldquo;TR&rdquo;) check is
+                <strong>skipped</strong> — never reported as a pass.</p>
+            </div>
+          </div>
+          <div class="drop" data-drop="ref">
+            <input type="file" id="ref" webkitdirectory directory multiple hidden>
+            <div class="drop-inner">
+              <span class="drop-icon">▤</span>
+              <span class="drop-label"><button type="button" class="linkish" data-pick="ref">Choose the reference .edb folder</button></span>
+              <span class="drop-file" data-file="ref"></span>
+            </div>
+          </div>
+        </li>
+
+        <li class="step" data-step="4">
+          <div class="step-head">
+            <span class="step-num">4</span>
+            <div>
+              <h3>Drawing PDF <span class="tag tag-optional">optional</span></h3>
+              <p class="muted">Kept alongside the results so you can open the sheet a finding sits on.</p>
+            </div>
+          </div>
+          <div class="drop" data-drop="pdf">
+            <input type="file" id="pdf" accept="application/pdf" hidden>
+            <div class="drop-inner">
+              <span class="drop-icon">▤</span>
+              <span class="drop-label">Drop the PDF here, or <button type="button" class="linkish" data-pick="pdf">choose a file</button></span>
+              <span class="drop-file" data-file="pdf"></span>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <p id="job-error" class="form-error" role="alert" hidden></p>
+      <button type="submit" id="run" class="btn btn-primary btn-lg" disabled>Run verification</button>
+    </form>
+
+    <section id="recent" hidden>
+      <h3>Recent runs</h3>
+      <ul id="recent-list" class="recent-list"></ul>
+    </section>
+  </main>
+</section>
+
+<!-- ── running ───────────────────────────────────────────────────────────── -->
+<section id="view-running" class="view">
+  <div class="running-shell">
+    <div class="pulse"><span></span><span></span><span></span></div>
+    <h2 id="run-stage">Starting…</h2>
+    <p class="muted" id="run-message"></p>
+    <div class="progress"><div id="run-bar"></div></div>
+    <ol id="run-steps" class="run-steps"></ol>
+    <button id="run-cancel" class="btn btn-ghost">Back</button>
+  </div>
+</section>
+
+<!-- ── results ───────────────────────────────────────────────────────────── -->
+<section id="view-results" class="view">
+  <header class="topbar">
+    <div class="brand small">
+      <span class="brand-mark">⚡</span><strong>BMS Drawing Verifier</strong>
+    </div>
+    <div class="topbar-right">
+      <button id="new-run" class="btn btn-ghost">New run</button>
+      <button id="logout2" class="btn btn-ghost">Sign out</button>
+    </div>
+  </header>
+
+  <div class="results-shell">
+    <div id="stats" class="stats"></div>
+    <div id="empty" class="empty" hidden>
+      <div class="empty-mark">✓</div>
+      <h2>Nothing to report</h2>
+      <p class="muted">Every scheduled point was matched by multiplicity, and no
+        structural check raised a finding.</p>
+    </div>
+
+    <div id="deck" class="deck" tabindex="0" aria-label="Findings, use left and right arrow keys">
+      <div id="deck-stack" class="deck-stack"></div>
+    </div>
+
+    <nav id="deck-nav" class="deck-nav">
+      <button id="prev" class="nav-btn" aria-label="Previous finding">‹</button>
+      <div class="deck-center">
+        <span id="counter" class="deck-counter" aria-live="polite">Finding 1 of 1</span>
+        <div id="dots" class="dots"></div>
+      </div>
+      <button id="next" class="nav-btn" aria-label="Next finding">›</button>
+    </nav>
+    <p class="hint muted">← → to move · <kbd>G</kbd> grid · <kbd>Esc</kbd> back to the deck</p>
+
+    <div id="grid" class="grid" hidden></div>
+  </div>
+</section>
+
+<script type="module" src="/app.js?v=11"></script>
+</body>
+</html>

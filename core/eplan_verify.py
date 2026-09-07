@@ -91,8 +91,10 @@ How a point is recognised (properties, not positional text):
       * Full Combined  = "Type Tag PointTag" (space-joined, tag omitted if empty)
   This is the canonical identity used for verification against the CSV.
 
-Run it simply:  python main.py
-Edit the paths in main() below - they are plain variables, not CLI arguments.
+This module is pure analysis plus ONE orchestration entry point,
+run_verification(source, points_csv, reference_source, out_dir, progress) - it
+takes explicit paths, returns the report, and never prints. Drive it from the
+command line with  python cli.py --help  , or from the web API in api/.
 """
 
 import csv
@@ -179,8 +181,11 @@ def extract_from_zw1(zw1_path, members, dest_dir):
         members = [members]
     exe = _find_archiver()
     if exe is None:
-        raise RuntimeError(
-            "No 7-Zip or WinRAR found to read the .zw1. Install 7-Zip (7z.exe).")
+        # No installed archiver. py7zr is a pure-Python 7-Zip reader; using it
+        # is still "let a real archiver do it", just an in-process one, so the
+        # decision above (never hand-decode the container) stands. It matters
+        # most on a server, where installing 7-Zip is not always an option.
+        return _extract_from_zw1_py7zr(zw1_path, members, dest_dir)
     if os.path.basename(exe).lower().startswith("7z"):
         cmd = [exe, "x", "-y", f"-o{dest_dir}", zw1_path, *members]
     else:  # WinRAR:  x <archive> <files...> <dest\>
@@ -197,6 +202,58 @@ def extract_from_zw1(zw1_path, members, dest_dir):
         if not os.path.exists(path):
             raise FileNotFoundError(f"{m!r} was not extracted from {zw1_path!r}")
         out[m] = path
+    return out
+
+
+def _extract_from_zw1_py7zr(zw1_path, members, dest_dir):
+    """
+    Fallback for machines with no 7-Zip/WinRAR installed: extract the members
+    with the py7zr library. Same contract as extract_from_zw1 - raises if the
+    library is absent or a member does not appear, never falls back to a loose
+    .edb. Matching is case-insensitive on the base name, since the members sit
+    inside a project folder within the archive.
+
+    CAVEAT: this path is less proven than a real archiver. On the project's
+    'DDC 3 - WRONG TR' backup, py7zr 1.1.3 raises CrcError on Page.eod where an
+    installed 7-Zip is the reference implementation; whether that is a py7zr
+    decode bug or a genuinely damaged archive is not decidable from here. The
+    error is allowed to propagate - a CRC failure must never be papered over -
+    so INSTALL 7-ZIP if you rely on .zw1 sources. Uploading the two .eod members
+    directly (what the web UI does) avoids the question entirely.
+    """
+    try:
+        import py7zr
+    except ImportError as exc:
+        raise RuntimeError(
+            "No 7-Zip or WinRAR found to read the .zw1, and py7zr is not "
+            "installed. Install 7-Zip (7z.exe), or  pip install py7zr .") from exc
+
+    wanted = {m.lower(): m for m in members}
+    # Hand py7zr an OPEN FILE rather than a path: that makes it take its serial
+    # extraction path. Its parallel path crashes on targeted extraction of this
+    # archive layout (folders with no file list -> TypeError in py7zr 1.1.3).
+    with open(zw1_path, "rb") as fh:
+        with py7zr.SevenZipFile(fh, mode="r") as archive:
+            targets = [name for name in archive.getnames()
+                       if os.path.basename(name).lower() in wanted]
+            if not targets:
+                raise FileNotFoundError(
+                    f"none of {members!r} are present in {zw1_path!r}")
+            archive.extract(path=dest_dir, targets=targets)
+
+    out = {}
+    for name in targets:
+        member = wanted[os.path.basename(name).lower()]
+        src = os.path.join(dest_dir, os.path.normpath(name))
+        dst = os.path.join(dest_dir, member)
+        if os.path.exists(src):
+            if os.path.abspath(src) != os.path.abspath(dst):
+                os.replace(src, dst)
+            out[member] = dst
+    missing = [m for m in members if m not in out]
+    if missing:
+        raise FileNotFoundError(
+            f"{missing!r} were not extracted from {zw1_path!r}")
     return out
 
 
@@ -847,14 +904,16 @@ def channel_type_hint_diagnostics(points, csv_real):
 #     design - e.g. a rail where every terminal is wired twice). So there is NO
 #     safe universal rule ("must be contiguous", "must be unique") to certify
 #     against a single file.
-#   - What IS decidable: whether the SAME EPLAN object carries a different
-#     terminal number than it does in a known-good REFERENCE drawing. Both page
-#     AND function object ids are stable across snapshots of one project
-#     (verified: every page except the deliberately edited ones is byte-for-byte
-#     identical between the test drawings), so the primary check keys on
-#     (page_object_id, function_object_id) -> terminal_number. That catches even
-#     a pure SWAP (object A 3->4, object B 4->3), which a page-level multiset
-#     misses. The page multiset is kept only as a rollup / fallback. This is
+#   - What IS decidable: whether the SAME terminal position carries a different
+#     number than it does in a known-good REFERENCE drawing. Pairing the two
+#     sides is done by _pick_terminal_join: object ids when both sides really
+#     share them (two reads of the same .edb), otherwise (page_name, rail
+#     position within the page). Object ids are NOT stable across project
+#     COPIES - EPLAN re-issues every page and function id when a copy is saved,
+#     so two copies of one project share zero ids and an id-only join compares
+#     nothing at all. Either pairing catches a pure SWAP (position A 3->4,
+#     position B 4->3), which a page-level multiset misses. The page multiset
+#     (keyed by page name) is kept as a rollup / fallback. This is
 #     reported as a distinct "terminal_diagnostics" section, separate from the
 #     CERTIFIED point-verification (no reference needed) and the UNCERTIFIED
 #     string-inference hints (Phase D); it needs a REFERENCE_SOURCE and is only
@@ -896,10 +955,14 @@ def extract_terminal_designations(eod_path, page_map=None, only_ddc_nums=None):
 
 
 def build_terminal_roster(designations):
-    """{page_object_id: Counter(terminal_number -> count)} for one drawing."""
+    """
+    {page_name: Counter(terminal_number -> count)} for one drawing. Keyed by
+    page NAME, not page object id: object ids are re-issued per project copy
+    and so are not comparable between two drawings (see _pick_terminal_join).
+    """
     roster = defaultdict(Counter)
     for d in designations:
-        roster[d["page_object_id"]][d["terminal_number"]] += 1
+        roster[d["page_name"]][d["terminal_number"]] += 1
     return roster
 
 
@@ -911,64 +974,135 @@ def _terminal_by_object(designations):
     return {k: sorted(v) for k, v in idx.items()}
 
 
+def _terminal_by_page_slot(designations):
+    """
+    ({(page_name, slot): [terminal_number]}, {(page_name, slot): object_id}).
+
+    `slot` is the RANK of a record's function_object_id within its own page
+    (0-based). EPLAN issues those ids in rail order, so slot 0 is the first
+    terminal on the strip, slot 1 the second, and so on - the same physical
+    position in every copy of the project, whatever ids EPLAN re-issued. Used
+    when the object-id join finds no overlap (see _pick_terminal_join).
+    """
+    by_page = defaultdict(list)
+    for d in designations:
+        by_page[d["page_name"]].append(d)
+    idx, oids = {}, {}
+    for page_name, recs in by_page.items():
+        recs.sort(key=lambda r: (r["function_object_id"] is None,
+                                 r["function_object_id"]))
+        for slot, r in enumerate(recs):
+            idx[(page_name, slot)] = [r["terminal_number"]]
+            oids[(page_name, slot)] = r["function_object_id"]
+    return idx, oids
+
+
+def _pick_terminal_join(target_designations, reference_designations):
+    """
+    Choose how to pair a target terminal record with its reference counterpart.
+
+    "object_id" - (page_object_id, function_object_id). Exact, and the right
+    key when both sides are snapshots of the SAME .edb (ids untouched).
+
+    "page_slot" - (page_name, rank of object id within the page). EPLAN
+    RE-ISSUES every page and function object id when a project is copied and
+    re-saved, so two copies of one project routinely share ZERO object ids
+    (observed on this project: pages 12893.. vs 13454.., functions 693034.. vs
+    724939..). Joining on ids there yields an EMPTY intersection - no terminal
+    is ever compared and every real "WRONG TR" change is silently missed - so
+    fall back to the page name, which is stable, and the rail position in it.
+
+    Returns (join_key, target_index, reference_index, target_oids, reference_oids).
+    """
+    t_obj = _terminal_by_object(target_designations)
+    r_obj = _terminal_by_object(reference_designations)
+    if set(t_obj) & set(r_obj):
+        return ("object_id", t_obj, r_obj,
+                {k: k[1] for k in t_obj}, {k: k[1] for k in r_obj})
+    t_slot, t_oids = _terminal_by_page_slot(target_designations)
+    r_slot, r_oids = _terminal_by_page_slot(reference_designations)
+    return "page_slot", t_slot, r_slot, t_oids, r_oids
+
+
 def terminal_diagnostics(target_designations, reference_designations):
     """
     REFERENCE-based diagnostic (see module note above): diff the target
     drawing's terminals against a known-good reference of the SAME project.
 
-    PRIMARY comparison is per EPLAN object: (page_object_id, function_object_id)
-    -> terminal_number. Because object ids are stable across snapshots of one
-    project (verified), this pins the change to the exact terminal record and,
-    crucially, catches a SWAP - object A: 3->4 while object B: 4->3 - which a
-    page-level multiset would miss entirely (the set {3,4} is unchanged).
+    PRIMARY comparison pairs each terminal record with its reference
+    counterpart and diffs the terminal_number. The pairing key is chosen by
+    _pick_terminal_join: object ids when the two sides actually share them,
+    otherwise (page_name, rail position) - because EPLAN re-issues object ids
+    on every project copy and an id join across copies matches nothing. Either
+    way the check pins the change to one terminal and catches a pure SWAP
+    (position A: 3->4 while position B: 4->3), which a page-level multiset
+    misses entirely (the set {3,4} is unchanged).
 
-    SUMMARY / fallback is the page-level multiset (build_terminal_roster): which
-    numbers appear more/fewer times per page. It is kept as a rollup and as a
-    safety net for the (not observed here) case where object ids are NOT stable
-    and the per-object join finds nothing.
+    SUMMARY / fallback is the page-level multiset (build_terminal_roster),
+    keyed by PAGE NAME: which numbers appear more/fewer times per page.
 
-    Returns a dict; has_differences is True if any per-object change, any object
-    present on only one side, OR (fallback) any page-multiset difference.
+    Returns a dict; has_differences is True if any paired terminal changed, any
+    terminal exists on only one side, OR any page-multiset difference.
     """
-    t_obj = _terminal_by_object(target_designations)
-    r_obj = _terminal_by_object(reference_designations)
+    join_key, t_idx, r_idx, t_oids, r_oids = _pick_terminal_join(
+        target_designations, reference_designations)
     page_names = {d["page_object_id"]: d["page_name"]
                   for d in reference_designations + target_designations}
+    page_ids = {}
+    for d in target_designations + reference_designations:
+        page_ids.setdefault(d["page_name"], d["page_object_id"])
+
+    def _page_of(key):
+        return page_names.get(key[0]) if join_key == "object_id" else key[0]
+
+    def _page_id_of(key):
+        return key[0] if join_key == "object_id" else page_ids.get(key[0])
+
+    def _slot_of(key):
+        return None if join_key == "object_id" else key[1]
+
+    def _sort_key(key):
+        return (str(key[0]), key[1])
 
     def _one(v):
         return v[0] if len(v) == 1 else v
 
     per_object_changes = []
-    for key in sorted(set(t_obj) & set(r_obj)):
-        if t_obj[key] != r_obj[key]:
-            page_id, oid = key
+    for key in sorted(set(t_idx) & set(r_idx), key=_sort_key):
+        if t_idx[key] != r_idx[key]:
             per_object_changes.append({
-                "page_object_id": page_id,
-                "page_name": page_names.get(page_id),
-                "function_object_id": oid,
-                "reference_terminal": _one(r_obj[key]),
-                "target_terminal": _one(t_obj[key]),
+                "join_key": join_key,
+                "page_object_id": _page_id_of(key),
+                "page_name": _page_of(key),
+                "terminal_slot": _slot_of(key),
+                "function_object_id": t_oids.get(key),
+                "reference_function_object_id": r_oids.get(key),
+                "reference_terminal": _one(r_idx[key]),
+                "target_terminal": _one(t_idx[key]),
             })
 
-    def _side_only(keys, idx):
-        return [{"page_object_id": k[0], "page_name": page_names.get(k[0]),
-                 "function_object_id": k[1], "terminal": _one(idx[k])}
-                for k in sorted(keys)]
+    def _side_only(keys, idx, oids):
+        return [{"join_key": join_key, "page_object_id": _page_id_of(k),
+                 "page_name": _page_of(k), "terminal_slot": _slot_of(k),
+                 "function_object_id": oids.get(k), "terminal": _one(idx[k])}
+                for k in sorted(keys, key=_sort_key)]
 
-    only_target = _side_only(set(t_obj) - set(r_obj), t_obj)
-    only_reference = _side_only(set(r_obj) - set(t_obj), r_obj)
+    only_target = _side_only(set(t_idx) - set(r_idx), t_idx, t_oids)
+    only_reference = _side_only(set(r_idx) - set(t_idx), r_idx, r_oids)
 
-    # page-level multiset summary / fallback
+    # page-level multiset summary / fallback, keyed by PAGE NAME (page object
+    # ids are not comparable across project copies - see _pick_terminal_join).
     target_roster = build_terminal_roster(target_designations)
     reference_roster = build_terminal_roster(reference_designations)
     page_roster_summary = []
-    for page_id in sorted(set(target_roster) & set(reference_roster)):
-        extra = target_roster[page_id] - reference_roster[page_id]
-        missing = reference_roster[page_id] - target_roster[page_id]
+    for page_name in sorted(set(target_roster) & set(reference_roster),
+                            key=lambda p: p or ""):
+        extra = target_roster[page_name] - reference_roster[page_name]
+        missing = reference_roster[page_name] - target_roster[page_name]
         if extra or missing:
             page_roster_summary.append({
-                "page_object_id": page_id,
-                "page_name": page_names.get(page_id),
+                "page_object_id": page_ids.get(page_name),
+                "page_name": page_name,
                 "extra_terminal_numbers": dict(sorted(extra.items())),
                 "missing_terminal_numbers": dict(sorted(missing.items())),
             })
@@ -977,10 +1111,12 @@ def terminal_diagnostics(target_designations, reference_designations):
                            or page_roster_summary)
     return {
         "has_differences": has_differences,
+        "join_key": join_key,
         "per_object_change_count": len(per_object_changes),
         "per_object_changes": sorted(
             per_object_changes,
-            key=lambda f: (f["page_name"] or "", f["function_object_id"] or 0)),
+            key=lambda f: (f["page_name"] or "", f["terminal_slot"] or 0,
+                           f["function_object_id"] or 0)),
         "objects_only_in_target": only_target,
         "objects_only_in_reference": only_reference,
         "page_roster_summary": page_roster_summary,
@@ -988,84 +1124,101 @@ def terminal_diagnostics(target_designations, reference_designations):
 
 
 # ---------------------------------------------------------------------------
-# main - paths are plain variables here, edit as needed
+# run_verification - the whole pipeline as one callable.
+#
+# Everything above is pure analysis; this is the only orchestration. It takes
+# explicit paths (no module-level configuration), returns the report plus the
+# intermediate artifacts in memory, and writes the four JSON files only when an
+# out_dir is given - so a CLI, a web request handler or a test can all drive the
+# same code. It never prints: callers that want progress pass a `progress`
+# callback and render it however they like.
 # ---------------------------------------------------------------------------
 
-def main():
-    # ----- inputs (edit these) ------------------------------------------------
-    # SOURCE is the drawing to verify: an .edb folder (the working/edited project
-    # - where seeded QA changes live) OR a .zw1 backup. The two can differ; every
-    # run fingerprints what it actually read (see report["source"]).
-    SOURCE = r"D:\BMS-original\DDC 3 - wrong priorities\IRQAH UNIVERSITY.edb"
-    POINTS_CSV = r"D:\BMS-original\DDC 3 - wrong priorities\points_tags.csv"
-    # REFERENCE_SOURCE (optional, set to None to skip): a known-good drawing of
-    # the SAME project, used ONLY for the Phase E terminal-designation diff (see
-    # terminal_diagnostics). Point verification (Phases 1-3) never needs this.
-    REFERENCE_SOURCE = r"D:\BMS-original\DDC 3 - wrong priorities\IRQAH UNIVERSITY.edb"
-    OUT_DIR = os.path.dirname(SOURCE.rstrip("\\/"))
-    OUT_JSON = os.path.join(OUT_DIR, "eplan_points.json")
-    OUT_REPORT = os.path.join(OUT_DIR, "verification_report.json")
-    OUT_EXCLUDED = os.path.join(OUT_DIR, "eplan_points_excluded.json")
-    OUT_EXPECTED = os.path.join(OUT_DIR, "expected_points.json")
-    # -------------------------------------------------------------------------
+TOTAL_STAGES = 7
 
+
+def _same_path(a, b):
+    """True if two paths denote the same file/folder (case-insensitive on Windows)."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return (os.path.normcase(os.path.abspath(a))
+                == os.path.normcase(os.path.abspath(b)))
+
+
+def run_verification(source, points_csv, reference_source=None, out_dir=None,
+                     progress=None):
+    """
+    Verify one EPLAN drawing against one points schedule.
+
+    source            .edb folder or .zw1 backup to verify (see resolve_source)
+    points_csv        the schedule, in the QTY/DI/DO/AI/AO/Total_* schema
+    reference_source  optional known-good drawing of the SAME project; enables
+                      the Phase E terminal ('TR') diff. Without it Phase E is
+                      SKIPPED and says so - it is never silently reported as a
+                      pass. Passing the same drawing as `source` is rejected,
+                      because a self-comparison can only ever report "no
+                      differences".
+    out_dir           if given, the four JSON artifacts are written there
+    progress          optional callable(stage:int, total:int, message:str)
+
+    Returns {"report", "points", "excluded", "expected_points", "outputs"}.
+    """
+    def _step(n, msg):
+        if progress:
+            progress(n, TOTAL_STAGES, msg)
+
+    if reference_source is not None and _same_path(source, reference_source):
+        raise ValueError(
+            "reference_source is the same drawing as source: a self-comparison "
+            "can only ever report 'no differences'. Pass a known-good drawing "
+            "of the same project, or None to skip the terminal ('TR') check.")
+
+    # ---- [1/7] schedule: classify + generate the expected priority order -----
     # The CSV is the schedule for one (or more) specific DDCs. Classify every
     # point's I/O type straight from its DI/DO/AI/AO columns (never from its
-    # name). Then GENERATE the expected priority order DI -> AI -> AO -> DO
-    # (expected_points.json) - this is the expectation only; it does NOT verify
-    # that EPLAN allocates channels in that order (a future phase).
-    print("[1/7] Classifying schedule + generating expected priority order ...")
-    csv_real, csv_summary = load_csv_points(POINTS_CSV)
+    # name). Then GENERATE the expected priority order DI -> AI -> AO -> DO -
+    # this is the expectation only; it does NOT verify that EPLAN allocates
+    # channels in that order (a future phase).
+    _step(1, "Classifying schedule + generating expected priority order")
+    csv_real, csv_summary = load_csv_points(points_csv)
     ddc_nums = {n for n in (_ddc_num(r["DDC"]) for r in csv_real) if n}
-    print(f"      schedule covers DDC number(s): {sorted(ddc_nums) or 'ALL'}")
-    invalid_type_rows = [r for r in csv_real if r["expected_io_type"] == "INVALID_EXCEL_TYPE"]
+    invalid_type_rows = [r for r in csv_real
+                         if r["expected_io_type"] == "INVALID_EXCEL_TYPE"]
     totals_mismatch_rows = [r for r in csv_real if r["totals_consistent"] is False]
     expected_points = build_expected_points(csv_real)
-    with open(OUT_EXPECTED, "w", encoding="utf-8") as fh:
-        json.dump(expected_points, fh, indent=2, ensure_ascii=False)
-    print(f"      classified {len(csv_real)} points; expected priority order "
-          f"(DI->AI->AO->DO, generation only) -> {OUT_EXPECTED}")
-    print(f"      invalid Excel type (>=2 flags set): {len(invalid_type_rows)}")
-    print(f"      QTY*flag != Total mismatches      : {len(totals_mismatch_rows)}")
 
-    print("[2/7] Reading Function.eod + Page.eod from the source ...")
+    # ---- [2/7] read the source ----------------------------------------------
+    _step(2, "Reading Function.eod + Page.eod from the source")
     with tempfile.TemporaryDirectory() as tmp:
-        got = resolve_source(SOURCE, tmp)
+        got = resolve_source(source, tmp)
         func_eod, page_eod = got["Function.eod"], got["Page.eod"]
         eod_sha, eod_size = _sha256_size(func_eod)
         page_sha, page_size = _sha256_size(page_eod)
         page_map, page_stats = build_page_map(page_eod)
-        source = {
-            "source": SOURCE,
-            "source_kind": "edb" if os.path.isdir(SOURCE) else "zw1",
+        source_info = {
+            "source": source,
+            "source_kind": "edb" if os.path.isdir(source) else "zw1",
             "function_eod_size": eod_size, "function_eod_sha256": eod_sha,
             "page_eod_size": page_size, "page_eod_sha256": page_sha,
             "page_table": page_stats,
         }
-        print(f"      Function.eod: {eod_size} bytes  sha256 {eod_sha[:16]}...")
-        print(f"      Page.eod    : {page_stats['slots']} slots, "
-              f"{page_stats['pages_with_id']} pages "
-              f"({page_stats.get('active_pages')} active / "
-              f"{page_stats.get('deleted_pages')} deleted)")
 
-        print("[3/7] Extracting raw point + terminal records from EPLAN ...")
+        # ---- [3/7] extract raw point + terminal records ----------------------
+        _step(3, "Extracting raw point + terminal records from EPLAN")
         raw_points = extract_points(func_eod, page_map=page_map,
                                     only_ddc_nums=ddc_nums or None)
         raw_terminals = extract_terminal_designations(
             func_eod, page_map=page_map, only_ddc_nums=ddc_nums or None)
-    print(f"      {len(raw_points)} raw point records, "
-          f"{len(raw_terminals)} raw terminal records on the scoped DDC page(s)")
 
-    print("[4/7] Scoping to ACTIVE pages (points AND terminals) ...")
+    # ---- [4/7] scope to ACTIVE pages (points AND terminals) -----------------
     # ONE structural rule for both record classes.
+    _step(4, "Scoping to ACTIVE pages (points AND terminals)")
     scoped_active = sum(1 for p in raw_points if _sid(p).get("page_active") is True)
     active_filter_applied = not (raw_points and scoped_active == 0)
     if not active_filter_applied:
         # safety net: the active-page flag did not mark any of this DDC's pages -
         # do NOT silently drop everything; keep all and flag it loudly.
-        print("      WARNING: 0 active pages detected for the scoped DDC. The "
-              "active-page flag (Page.eod byte 1129) may not apply to this "
-              "project/DDC; keeping ALL records rather than dropping everything.")
         points, excluded = list(raw_points), []
         active_terminals, deleted_terminals = list(raw_terminals), []
     else:
@@ -1075,19 +1228,18 @@ def main():
             si = _sid(p)
             p["excluded_reason"] = (f"on deleted page {si.get('page_number')} "
                                     f"({si.get('page_name')})")
-    with open(OUT_JSON, "w", encoding="utf-8") as fh:
-        json.dump(points, fh, indent=2, ensure_ascii=False)
-    with open(OUT_EXCLUDED, "w", encoding="utf-8") as fh:
-        json.dump(excluded, fh, indent=2, ensure_ascii=False)
-    print(f"      Point records    : raw {len(raw_points):3}  active {len(points):3}  "
-          f"deleted {len(excluded):3}")
-    print(f"      Terminal records : raw {len(raw_terminals):3}  active {len(active_terminals):3}  "
-          f"deleted {len(deleted_terminals):3}")
 
-    print("[5/7] Verifying by multiplicity against 'Full Combined' ...")
+    # ---- [5/7] verify by multiplicity ---------------------------------------
+    _step(5, "Verifying by multiplicity against 'Full Combined'")
     report = verify(points, csv_real)
-    report["source"] = source
+    report["source"] = source_info
     variants = scope_diagnostics(points)
+    report["schedule"] = {
+        "points_csv": points_csv,
+        "real_rows": len(csv_real),
+        "summary_rows_ignored": len(csv_summary),
+        "ddc_numbers": sorted(ddc_nums),
+    }
     report["page_scoping"] = {
         "active_filter_applied": active_filter_applied,
         "points": {"raw": len(raw_points), "active": len(points),
@@ -1112,7 +1264,8 @@ def main():
         } for r in totals_mismatch_rows],
     }
 
-    print("[6/7] Phase D (uncertified): EPLAN page-family type-hint check ...")
+    # ---- [6/7] Phase D (uncertified) ----------------------------------------
+    _step(6, "Phase D (uncertified): EPLAN page-family type-hint check")
     type_hint_findings = channel_type_hint_diagnostics(points, csv_real)
     report["uncertified_diagnostics"] = {
         "note": "Page-family type hints are a STRING INFERENCE (like "
@@ -1120,41 +1273,42 @@ def main():
         "channel_type_hint_mismatch_count": len(type_hint_findings),
         "channel_type_hint_mismatches": type_hint_findings,
     }
-    print(f"      type-hint mismatches (advisory): {len(type_hint_findings)}")
 
-    print("[7/7] Phase E: terminal-designation diff against REFERENCE_SOURCE ...")
+    # ---- [7/7] Phase E: terminal diff against the reference -----------------
+    _step(7, "Phase E: terminal-designation diff against the reference drawing")
     terminal_has_diff = False
-    terminal_result = None
-    if REFERENCE_SOURCE is None:
-        print("      REFERENCE_SOURCE not set - skipping terminal diagnostics.")
+    if reference_source is None:
         report["terminal_diagnostics"] = {
-            "note": "REFERENCE_SOURCE not set - terminal designations were not "
-                    "checked. Set REFERENCE_SOURCE to a known-good drawing of "
-                    "the same project to catch wrong/shifted terminal ('TR') "
-                    "numbers.",
+            "note": "No reference drawing supplied - terminal designations were "
+                    "NOT checked. Supply a known-good drawing of the same "
+                    "project to catch wrong/shifted terminal ('TR') numbers.",
             "reference_source": None,
+            "skipped": True,
             "has_differences": None,
         }
     else:
         with tempfile.TemporaryDirectory() as tmp2:
-            ref_got = resolve_source(REFERENCE_SOURCE, tmp2)
-            ref_func_eod, ref_page_eod = ref_got["Function.eod"], ref_got["Page.eod"]
-            ref_page_map, _ = build_page_map(ref_page_eod)
+            ref_got = resolve_source(reference_source, tmp2)
+            ref_page_map, _ = build_page_map(ref_got["Page.eod"])
             ref_raw_terminals = extract_terminal_designations(
-                ref_func_eod, page_map=ref_page_map, only_ddc_nums=ddc_nums or None)
+                ref_got["Function.eod"], page_map=ref_page_map,
+                only_ddc_nums=ddc_nums or None)
         # SAME active-page rule on the reference, so we compare active-in-TARGET
         # vs active-in-REFERENCE only - a diff on a deleted old terminal page can
         # never manufacture a WRONG TR finding (the exact stale-record trap we
         # closed for points).
-        ref_active_terminals, ref_deleted_terminals = filter_by_active_page(ref_raw_terminals)
+        ref_active_terminals, ref_deleted_terminals = filter_by_active_page(
+            ref_raw_terminals)
         terminal_result = terminal_diagnostics(active_terminals, ref_active_terminals)
         terminal_has_diff = terminal_result["has_differences"]
         report["terminal_diagnostics"] = {
             "note": "REFERENCE-based diff of terminal ('TR') designations against "
-                    "REFERENCE_SOURCE, ACTIVE pages only on both sides. PRIMARY "
-                    "key is (page_object_id, function_object_id) -> terminal_number "
-                    "(catches swaps); the page multiset is a rollup/fallback.",
-            "reference_source": REFERENCE_SOURCE,
+                    "the reference drawing, ACTIVE pages only on both sides. "
+                    "PRIMARY key is (page_object_id, function_object_id) -> "
+                    "terminal_number (catches swaps); the page multiset is a "
+                    "rollup/fallback.",
+            "reference_source": reference_source,
+            "skipped": False,
             "reference_terminals": {"raw": len(ref_raw_terminals),
                                     "active": len(ref_active_terminals),
                                     "deleted": len(ref_deleted_terminals)},
@@ -1163,15 +1317,6 @@ def main():
                                  "deleted": len(deleted_terminals)},
             **terminal_result,
         }
-        print(f"      reference terminals active: {len(ref_active_terminals)}, "
-              f"target terminals active: {len(active_terminals)}")
-        print(f"      per-object terminal changes : "
-              f"{terminal_result['per_object_change_count']}")
-        print(f"      objects only in target/ref  : "
-              f"{len(terminal_result['objects_only_in_target'])}/"
-              f"{len(terminal_result['objects_only_in_reference'])}")
-        print(f"      pages with roster differences: "
-              f"{len(terminal_result['page_roster_summary'])}")
 
     # fail-closed certification: every scheduled point matched by multiplicity,
     # nothing missing/extra, every page reference resolved and consistent, the
@@ -1192,69 +1337,19 @@ def main():
                  and not terminal_has_diff)
     report["legacy_ddc_page_variants"] = variants
     report["status"] = "CERTIFIED" if certified else "UNRESOLVED"
-    with open(OUT_REPORT, "w", encoding="utf-8") as fh:
-        json.dump(report, fh, indent=2, ensure_ascii=False)
 
-    print("      Result")
-    print(f"      SOURCE ({source['source_kind']})         : {os.path.basename(source['source'].rstrip(chr(92)+chr(47)))}")
-    print(f"      Function.eod sha256   : {source['function_eod_sha256']}")
-    print(f"      EPLAN points (active) : {report['eplan_points']} "
-          f"(dropped {len(excluded)} on deleted pages"
-          f"{'' if active_filter_applied else '; ACTIVE FILTER NOT APPLIED'})")
-    print(f"      schedule expects      : {report['excel_expected_total']} "
-          f"(+{len(csv_summary)} calculated summary rows ignored)")
-    print(f"      matched (multiplicity): {report['matched']}")
-    print(f"      missing from drawing  : {report['missing_from_eplan']}")
-    print(f"      extra instances       : {report['extra_instances_in_eplan']}")
-    print(f"      page unresolved       : {report['page_unresolved']}")
-    print(f"      page ref inconsistent : {report['page_ref_inconsistent']}")
-    print(f"      invalid Excel type    : {len(invalid_type_rows)}")
-    print(f"      totals mismatch       : {len(totals_mismatch_rows)}")
-    print(f"      type-hint mismatch (advisory): {len(type_hint_findings)}")
-    if terminal_result is not None:
-        print(f"      terminal ('TR') object changes: "
-              f"{terminal_result['per_object_change_count']}")
-    for d in report["discrepancies"]:
-        print(f"      -- {d['kind']}: expected {d['expected']}, found {d['found']}"
-              f"  {d['full_combined']}")
-        for inst in d["instances"]:
-            print(f"           oid={inst['function_object_id']} "
-                  f"page={inst['page_name']} channel={inst['channel_raw']}")
-    if invalid_type_rows:
-        print("      -- INVALID_EXCEL_TYPE (>=2 flags set) --")
-        for r in invalid_type_rows:
-            print(f"           {r['Full Combined']}  flags={r['excel_type_flags']}")
-    if totals_mismatch_rows:
-        print("      -- QTY*flag != Total mismatch --")
-        for r in totals_mismatch_rows:
-            print(f"           {r['Full Combined']}  qty={r['quantity']} "
-                  f"expected={r['totals_expected']} actual={r['totals_actual']}")
-    if type_hint_findings:
-        print("      -- ADVISORY: schedule type vs EPLAN page-family hint mismatch --")
-        for f in type_hint_findings:
-            print(f"           {f['full_combined']}: expected {f['expected_io_type']}, "
-                  f"page {f['page_name']} hints {f['page_family_hint']} "
-                  f"(oid={f['function_object_id']})")
-    if terminal_result and terminal_result["has_differences"]:
-        print("      -- WRONG TR: terminal designations differ from reference --")
-        for c in terminal_result["per_object_changes"]:
-            print(f"           oid={c['function_object_id']} page={c['page_name']}: "
-                  f"terminal {c['reference_terminal']} -> {c['target_terminal']}")
-        for o in terminal_result["objects_only_in_target"]:
-            print(f"           oid={o['function_object_id']} page={o['page_name']}: "
-                  f"terminal {o['terminal']} present in target, ABSENT in reference")
-        for o in terminal_result["objects_only_in_reference"]:
-            print(f"           oid={o['function_object_id']} page={o['page_name']}: "
-                  f"terminal {o['terminal']} present in reference, ABSENT in target")
-        for f in terminal_result["page_roster_summary"]:
-            print(f"           [page-summary] {f['page_name']}: "
-                  f"extra={f['extra_terminal_numbers']} "
-                  f"missing={f['missing_terminal_numbers']}")
-    if variants:
-        print(f"      legacy DDC page variants: {len(variants)} DDCs {list(variants)}")
-    print(f"      STATUS                : {report['status']}")
-    print(f"      report -> {OUT_REPORT}")
+    outputs = {}
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+        for name, payload in (("eplan_points.json", points),
+                              ("eplan_points_excluded.json", excluded),
+                              ("expected_points.json", expected_points),
+                              ("verification_report.json", report)):
+            path = os.path.join(out_dir, name)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2, ensure_ascii=False)
+            outputs[name] = path
+    report["outputs"] = outputs
 
-
-if __name__ == "__main__":
-    main()
+    return {"report": report, "points": points, "excluded": excluded,
+            "expected_points": expected_points, "outputs": outputs}

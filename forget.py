@@ -945,12 +945,12 @@ def main():
     # SOURCE is the drawing to verify: an .edb folder (the working/edited project
     # - where seeded QA changes live) OR a .zw1 backup. The two can differ; every
     # run fingerprints what it actually read (see report["source"]).
-    SOURCE = r"D:\BMS-original\DDC 3 - CORRECT\DDC 3.edb"
-    POINTS_CSV = r"D:\BMS-original\DDC 3 - CORRECT\points_tags.csv"
+    SOURCE = r"C:\Users\moham\Desktop\BMS\data\DDC 3 - spelling mistakes\DDC 3.edb"
+    POINTS_CSV = r"C:\Users\moham\Desktop\BMS\data\DDC 3 - spelling mistakes\points_tags.csv"
     # REFERENCE_SOURCE (optional, set to None to skip): a known-good drawing of
     # the SAME project, used ONLY for the Phase E terminal-designation diff (see
     # terminal_diagnostics). Point verification (Phases 1-3) never needs this.
-    REFERENCE_SOURCE = r"D:\BMS-original\DDC 3 - CORRECT\DDC 3.edb"
+    REFERENCE_SOURCE = r"C:\Users\moham\Desktop\BMS\data\DDC 3 - spelling mistakes\DDC 3.edb"
     OUT_DIR = os.path.dirname(SOURCE.rstrip("\\/"))
     OUT_JSON = os.path.join(OUT_DIR, "eplan_points.json")
     OUT_REPORT = os.path.join(OUT_DIR, "verification_report.json")

@@ -1,0 +1,12 @@
+# Web API
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Excel schedule parsing (core/schedule.py)
+openpyxl
+msoffcrypto-tool
+
+# Optional: reads .zw1 backups without an external 7-Zip/WinRAR install.
+# Without it, resolve_source() needs 7z.exe or WinRAR.exe on the machine.
+py7zr
