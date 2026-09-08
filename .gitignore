@@ -9,3 +9,8 @@ jobs/
 users.csv
 data/
 data/
+
+# AI review: local secrets and generated artifacts
+.env
+recommendations.json
+report.txt

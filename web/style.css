@@ -158,11 +158,19 @@ input:focus, select:focus {
 .topbar-right { display: flex; align-items: center; gap: 12px; font-size: .9rem; }
 
 /* upload ----------------------------------------------------------------- */
-.upload-shell { max-width: 780px; margin: 0 auto; padding: 40px 26px 90px; }
+.upload-shell { max-width: 920px; margin: 0 auto; padding: 40px 26px 90px; }
 .upload-shell > h2 { font-size: 1.7rem; }
-.steps { list-style: none; margin: 34px 0 0; padding: 0; }
-.step { position: relative; padding-bottom: 30px; }
-.step + .step { margin-top: 6px; }
+/* two boxes per row; each step is its own card and its drop zone sinks to the
+   bottom so the drop targets line up across a row of uneven-height cards */
+.steps {
+  list-style: none; margin: 34px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+}
+.step {
+  position: relative; display: flex; flex-direction: column;
+  padding: 20px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
 .step-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
 .step-head h3 { font-size: 1.03rem; }
 .step-head p { font-size: .87rem; margin-top: 4px; max-width: 58ch; }
@@ -182,7 +190,7 @@ input:focus, select:focus {
 .tag-optional { background: var(--panel-2); border: 1px solid var(--border-2); color: var(--muted); }
 
 .drop {
-  margin-left: 41px; border: 1.5px dashed var(--border-2); border-radius: var(--radius);
+  margin-top: auto; border: 1.5px dashed var(--border-2); border-radius: var(--radius);
   background: color-mix(in srgb, var(--panel) 55%, transparent);
   padding: 22px; text-align: center;
   transition: border-color 200ms var(--ease), background 200ms var(--ease),
@@ -195,12 +203,14 @@ input:focus, select:focus {
 .drop-label { font-size: .92rem; }
 .drop-file { font-family: var(--mono); font-size: .82rem; color: var(--ok); }
 .step-extra {
-  margin: 16px 0 0 41px; padding: 18px; border-radius: var(--radius);
+  margin: 16px 0 0; padding: 18px; border-radius: var(--radius);
   background: color-mix(in srgb, var(--panel) 55%, transparent);
   border: 1px solid var(--border);
   animation: rise 320ms var(--ease) both;
 }
-#run { margin-top: 10px; }
+/* the Run button occupies the empty grid cell beside the last step card */
+.run-cell { display: flex; align-items: center; justify-content: center; }
+.run-cell #run { margin: 0; width: 100%; }
 .recent-list { list-style: none; padding: 0; margin: 14px 0 0; }
 .recent-list li {
   display: flex; justify-content: space-between; gap: 12px; align-items: center;
@@ -372,6 +382,51 @@ input:focus, select:focus {
 .pair b { color: var(--sev-advisory); }
 .pair .why { color: var(--muted); font-size: .79rem; margin-top: 5px; }
 
+/* AI review block (core/recommend.py). Neutral accent so it never mimics a
+   severity stripe; a green safe-correction vs amber review-needed badge is the
+   only strong colour, and it is advisory - it never changes the verdict. */
+.ai-note {
+  margin: 14px 0 0; padding: 9px 13px; border-radius: 10px; font-size: .84rem;
+  color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
+}
+.ai-review {
+  margin-top: 15px; padding: 13px 15px; border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-size: .86rem;
+}
+.ai-review.safe {
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+}
+.ai-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ai-tag { font-weight: 650; color: var(--accent); }
+.ai-review.safe .ai-tag { color: var(--ok); }
+.ai-badge {
+  font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 6px; border: 1px solid;
+}
+.ai-badge.safe { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.ai-badge.review { color: var(--sev-high); border-color: color-mix(in srgb, var(--sev-high) 45%, transparent); background: color-mix(in srgb, var(--sev-high) 12%, transparent); }
+.ai-conf { margin-left: auto; font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ai-action { line-height: 1.5; }
+.ai-name { margin-top: 6px; font-size: .82rem; }
+.ai-name b { color: var(--text); font-family: var(--mono); }
+.ai-why { font-size: .78rem; margin-top: 6px; }
+.ai-where { font-size: .78rem; margin-top: 10px; }
+
+/* consolidated issue card: the schedule vs drawing sides the AI linked */
+.compare {
+  display: flex; align-items: center; gap: 14px; margin: 16px 0;
+  padding: 14px 16px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border: 1px solid var(--border);
+}
+.cmp-side { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.cmp-lab { font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.cmp-val { font-family: var(--mono); font-size: .82rem; overflow-wrap: anywhere; line-height: 1.4; }
+.cmp-arrow { color: var(--muted); font-size: 1.2rem; flex: none; }
+
 .card-foot { margin-top: 16px; display: flex; gap: 10px; align-items: center; }
 
 /* deck navigation -------------------------------------------------------- */
@@ -425,6 +480,6 @@ input:focus, select:focus {
 
 @media (max-width: 620px) {
   .deck { height: 540px; }
-  .drop, .step-extra { margin-left: 0; }
+  .steps { grid-template-columns: 1fr; }
   .upload-shell, .results-shell { padding-left: 16px; padding-right: 16px; }
 }

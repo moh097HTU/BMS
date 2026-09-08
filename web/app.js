@@ -87,7 +87,7 @@ for (const id of ["#logout", "#logout2"]) {
 // hundreds of files; we filter to these in the browser so the upload is 2 files.
 const EOD_MEMBERS = ["function.eod", "page.eod"];
 
-const picked = { excel: null, edb: null, ref: null, pdf: null };
+const picked = { excel: null, edb: null, pdf: null };
 
 function pickEodMembers(fileList) {
   const found = {};
@@ -134,7 +134,6 @@ $("#excel").addEventListener("change", (e) => {
 });
 $("#edb").addEventListener("change", (e) => handleEdbSelection("edb", e.target.files));
 $("#edb-files").addEventListener("change", (e) => handleEdbSelection("edb", e.target.files));
-$("#ref").addEventListener("change", (e) => handleEdbSelection("ref", e.target.files));
 $("#pdf").addEventListener("change", (e) => {
   picked.pdf = e.target.files[0] || null;
   setSlot("pdf", picked.pdf ? picked.pdf.name : "");
@@ -155,7 +154,7 @@ $$(".drop").forEach((drop) => {
     drop.classList.remove("over");
     const files = await filesFromDataTransfer(e.dataTransfer);
     if (!files.length) return;
-    if (slot === "edb" || slot === "ref") return handleEdbSelection(slot, files);
+    if (slot === "edb") return handleEdbSelection(slot, files);
     picked[slot] = files[0];
     setSlot(slot, files[0].name);
     if (slot === "excel") {
@@ -220,10 +219,6 @@ $("#job-form").addEventListener("submit", async (event) => {
   body.append("sheet", $("#sheet").value);
   body.append("function_eod", picked.edb.fn, "Function.eod");
   body.append("page_eod", picked.edb.pg, "Page.eod");
-  if (picked.ref) {
-    body.append("ref_function_eod", picked.ref.fn, "Function.eod");
-    body.append("ref_page_eod", picked.ref.pg, "Page.eod");
-  }
   if (picked.pdf) body.append("pdf", picked.pdf);
   body.append("label", picked.excel.name);
 
@@ -297,19 +292,70 @@ async function pollJob(jobId) {
 
 /* ── results: the card deck ──────────────────────────────────────────────── */
 
-let all = [];          // every finding for this job
-let shown = [];        // after severity filtering
-let cards = [];        // one element per entry in `shown`
+let all = [];          // every raw finding for this job (used for lookups)
+let issues = [];        // AI actionable issues (present only when ai_status ok)
+let findingById = {};   // id -> raw finding
+let shown = [];         // the view items actually on the deck (issues or findings)
+let cards = [];         // one element per entry in `shown`
 let index = 0;
 let hasPdf = false;
 let jobId = null;
+let aiStatus = null;    // "ok" | "unavailable" | "skipped" | null
+
+// Human labels for the AI classifications (core/recommend.py).
+const AI_LABEL = {
+  TYPO_OR_NAMING_ERROR: "Likely typo",
+  NAMING_VARIATION: "Naming variation",
+  SEMANTIC_MISMATCH: "Meaning differs — verify",
+  ACTUAL_MISSING: "Genuinely missing",
+  ACTUAL_EXTRA: "Genuinely extra",
+  UNCERTAIN: "Needs review",
+};
+
+const SEV_RANK = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, ADVISORY: 3 };
+
+// An AI issue inherits the worst severity of the findings it consolidates, so a
+// typo pair (missing=CRITICAL + extra=HIGH) still reads as CRITICAL.
+function worstSeverity(findings) {
+  let best = "ADVISORY";
+  for (const f of findings) {
+    if ((SEV_RANK[f.severity] ?? 3) < SEV_RANK[best]) best = f.severity;
+  }
+  return best;
+}
+
+// When the AI review is present, one card = one consolidated issue; otherwise
+// one card = one raw finding. Both are normalised to {kind, severity, title,
+// certified} so the deck, grid and counter treat them uniformly.
+function buildViewItems() {
+  if (issues.length) {
+    return issues.map((it) => {
+      const srcs = it.source_finding_ids.map((id) => findingById[id]).filter(Boolean);
+      return {
+        kind: "issue", issue: it, srcs,
+        severity: srcs.length ? worstSeverity(srcs) : "ADVISORY",
+        certified: true,
+        title: it.suggested_correct_name || it.schedule_name
+               || it.drawing_name || srcs[0]?.title || "(issue)",
+      };
+    });
+  }
+  return all.map((f) => ({
+    kind: "finding", finding: f,
+    severity: f.severity, certified: f.certified, title: f.title,
+  }));
+}
 
 async function showResults(id) {
   jobId = id;
   const data = await api(`/api/jobs/${id}/findings`);
   all = data.findings;
   hasPdf = data.has_pdf;
+  aiStatus = data.summary?.ai_status ?? null;
+  issues = data.recommendations?.actionable_issues || [];
+  findingById = Object.fromEntries(all.map((f) => [f.id, f]));
   renderStats(data.summary);
+  renderAiNote();
   applyFilter();
   view("results");
   // preventScroll, or focusing the deck scrolls the verdict and stats off the
@@ -322,14 +368,17 @@ function renderStats(summary) {
     ["Schedule expects", summary.schedule_expects],
     ["In the drawing", summary.eplan_points],
     ["Matched", summary.matched],
-    ["Findings", summary.failure_count],
+    // after an AI review the queue is the consolidated issue count, not the raw
+    // finding count (e.g. 10 findings -> 5 issues)
+    issues.length ? ["Issues to review", issues.length]
+                  : ["Findings", summary.failure_count],
   ];
   $("#stats").innerHTML = stats.map(([label, value]) =>
     `<div class="stat"><b>${value ?? "—"}</b><span>${esc(label)}</span></div>`).join("");
 }
 
 function applyFilter() {
-  shown = all;
+  shown = buildViewItems();
   index = 0;
   buildDeck();
   renderGrid();
@@ -338,11 +387,11 @@ function applyFilter() {
 function buildDeck() {
   const stack = $("#deck-stack");
   stack.innerHTML = "";
-  cards = shown.map((finding, i) => {
+  cards = shown.map((item, i) => {
     const el = document.createElement("article");
-    el.className = "card" + (finding.certified ? "" : " advisory");
-    el.dataset.sev = finding.severity;
-    el.innerHTML = cardHtml(finding, i);
+    el.className = "card" + (item.certified ? "" : " advisory");
+    el.dataset.sev = item.severity;
+    el.innerHTML = cardHtml(item, i);
     stack.appendChild(el);
     return el;
   });
@@ -355,7 +404,13 @@ function buildDeck() {
   wirePdfButtons();
 }
 
-function cardHtml(f, i) {
+function cardHtml(item, i) {
+  return item.kind === "issue"
+    ? issueCardHtml(item, i)
+    : findingCardHtml(item.finding, i);
+}
+
+function findingCardHtml(f, i) {
   const showCounts = f.expected !== null || f.found !== null;
   const evidence = (f.evidence || []).filter((e) => Object.values(e).some((v) => v != null));
 
@@ -417,6 +472,73 @@ function cardHtml(f, i) {
     <div class="card-foot">${pdfButton}</div>`;
 }
 
+// One consolidated AI issue: the schedule/drawing sides it links, its verdict,
+// the recommended action, and where the drawing instance sits. Label only.
+function issueCardHtml(item, i) {
+  const it = item.issue;
+  const label = AI_LABEL[it.classification] || it.classification;
+  const conf = Math.round((it.relationship_confidence ?? 0) * 100);
+  const badge = it.safe_to_auto_fix
+    ? `<span class="ai-badge safe">Safe correction</span>`
+    : `<span class="ai-badge review">Review needed</span>`;
+
+  const compare = (it.schedule_name || it.drawing_name) ? `
+    <div class="compare">
+      ${it.schedule_name ? `<div class="cmp-side"><span class="cmp-lab">Schedule</span><span class="cmp-val">${esc(it.schedule_name)}</span></div>` : ""}
+      ${it.schedule_name && it.drawing_name ? `<span class="cmp-arrow">→</span>` : ""}
+      ${it.drawing_name ? `<div class="cmp-side"><span class="cmp-lab">Drawing</span><span class="cmp-val">${esc(it.drawing_name)}</span></div>` : ""}
+    </div>` : "";
+
+  const name = it.suggested_correct_name
+    ? `<div class="ai-name">Suggested name: <b>${esc(it.suggested_correct_name)}</b></div>` : "";
+
+  const where = [];
+  if (it.page_name || it.page) where.push(`page ${esc(it.page_name || it.page)}`);
+  if (it.channel) where.push(`channel ${esc(it.channel)}`);
+  if (it.function_object_id) where.push(`object ${esc(it.function_object_id)}`);
+  const whereHtml = where.length
+    ? `<p class="ai-where muted">In the drawing: ${where.join(" · ")}</p>` : "";
+
+  const pdfButton = hasPdf && it.page_name
+    ? `<button class="btn btn-ghost" data-pdf="1">Open the drawing PDF</button>` : "";
+
+  return `
+    <div class="card-top">
+      <span class="pill">${esc(item.severity)}</span>
+      <span class="pill pill-cat">${esc(label)}</span>
+      ${badge}
+      <span class="counter">${i + 1} / ${shown.length}</span>
+    </div>
+    <h3>${esc(item.title)}</h3>
+    <p class="summary">${esc(it.summary)}</p>
+    ${compare}
+    <div class="ai-review${it.safe_to_auto_fix ? " safe" : ""}">
+      <div class="ai-head">
+        <span class="ai-tag">✦ AI recommendation</span>
+        <span class="ai-conf">${conf}% confident</span>
+      </div>
+      <p class="ai-action">${esc(it.recommended_action)}</p>
+      ${name}
+      <p class="ai-why muted">${esc(it.reason)}</p>
+    </div>
+    ${whereHtml}
+    <div class="card-foot">${pdfButton}</div>`;
+}
+
+function renderAiNote() {
+  const note = $("#ai-note");
+  if (!note) return;
+  if (aiStatus === "unavailable") {
+    note.hidden = false;
+    note.textContent = "AI review was unavailable for this run — showing raw findings.";
+  } else if (issues.length && issues.length !== all.length) {
+    note.hidden = false;
+    note.textContent = `AI review grouped ${all.length} findings into ${issues.length} issue(s) to review.`;
+  } else {
+    note.hidden = true;
+  }
+}
+
 function wirePdfButtons() {
   $$("[data-pdf]").forEach((b) =>
     b.addEventListener("click", () => window.open(`/api/jobs/${jobId}/pdf`, "_blank")));
@@ -472,7 +594,9 @@ function position() {
 
 function updateCounter() {
   const el = $("#counter");
-  if (el) el.textContent = cards.length ? `Finding ${index + 1} of ${cards.length}` : "";
+  if (!el) return;
+  const noun = shown[0]?.kind === "issue" ? "Issue" : "Finding";
+  el.textContent = cards.length ? `${noun} ${index + 1} of ${cards.length}` : "";
 }
 
 function go(delta) {

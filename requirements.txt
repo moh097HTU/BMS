@@ -10,3 +10,7 @@ msoffcrypto-tool
 # Optional: reads .zw1 backups without an external 7-Zip/WinRAR install.
 # Without it, resolve_source() needs 7z.exe or WinRAR.exe on the machine.
 py7zr
+
+# AI review of the findings queue (core/recommend.py). Optional at runtime:
+# without GEMINI_API_KEY the app still runs and reports ai_status="unavailable".
+google-genai

@@ -119,6 +119,7 @@ def _run(job_id, source, points_csv, reference_source):
                                   out_dir=root, progress=progress)
         report = result["report"]
         findings = build_findings(report)
+        _attach_ai_review(job_id, findings)
         with open(os.path.join(root, "findings.json"), "w", encoding="utf-8") as fh:
             json.dump(findings, fh, indent=2, ensure_ascii=False)
         _log(job_id, result_lines(report, len(result["excluded"]))
@@ -132,6 +133,34 @@ def _run(job_id, source, points_csv, reference_source):
         traceback.print_exc()
         _update(job_id, state="error", message=str(exc) or exc.__class__.__name__,
                 error=exc.__class__.__name__, finished=time.time())
+
+
+def _attach_ai_review(job_id, findings):
+    """Best-effort AI review of the findings queue (core/recommend.py).
+
+    Runs on every job, but NEVER blocks completion: no key, a missing package,
+    or a Gemini failure just sets summary.ai_status="unavailable" and leaves the
+    findings exactly as the deterministic verifier produced them. The recommend
+    module is imported here, lazily, so a machine without google-genai still
+    starts and runs verifications.
+    """
+    if not findings.get("findings"):
+        findings["summary"]["ai_status"] = "skipped"
+        return
+    from core.recommend import analyze_findings, AIReviewUnavailable
+    try:
+        _update(job_id, message="AI review")
+        findings["recommendations"] = analyze_findings(findings["findings"])
+        findings["summary"]["ai_status"] = "ok"
+    except AIReviewUnavailable as exc:
+        # expected config case (no key / package) - one clean line, no traceback
+        sys.stdout.write(f"--- job {job_id}: AI review skipped ({exc}) ---\n")
+        sys.stdout.flush()
+        findings["summary"]["ai_status"] = "unavailable"
+    except Exception:
+        # a real failure (network, bad response) - keep the traceback for the log
+        traceback.print_exc()
+        findings["summary"]["ai_status"] = "unavailable"
 
 
 def _log(job_id, lines):

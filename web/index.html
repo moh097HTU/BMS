@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BMS Drawing Verifier</title>
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=16">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚡</text></svg>">
 </head>
 <body>
@@ -46,9 +46,6 @@
 
   <main class="upload-shell">
     <h2>New verification</h2>
-    <p class="muted lead">Give it the schedule and the drawing. Everything below
-      is checked structurally — nothing is inferred from point names.</p>
-
     <form id="job-form">
       <ol class="steps">
 
@@ -57,7 +54,7 @@
             <span class="step-num">1</span>
             <div>
               <h3>Points schedule</h3>
-              <p class="muted">The Excel workbook, or a points_tags.csv you already built.</p>
+              <p class="muted">The Excel workbook .</p>
             </div>
           </div>
           <div class="drop" data-drop="excel">
@@ -88,9 +85,7 @@
             <span class="step-num">2</span>
             <div>
               <h3>EPLAN drawing</h3>
-              <p class="muted">Pick the project's <code>.edb</code> folder — only
-                <code>Function.eod</code> and <code>Page.eod</code> are read, and
-                only those two are uploaded.</p>
+              <p class="muted">Pick the project's <code>.edb</code> folder </p>
             </div>
           </div>
           <div class="drop" data-drop="edb">
@@ -100,7 +95,6 @@
               <span class="drop-icon">▤</span>
               <span class="drop-label">
                 <button type="button" class="linkish" data-pick="edb">Choose the .edb folder</button>
-                <span class="muted"> or <button type="button" class="linkish" data-pick="edb-files">the two .eod files</button></span>
               </span>
               <span class="drop-file" data-file="edb"></span>
             </div>
@@ -110,26 +104,6 @@
         <li class="step" data-step="3">
           <div class="step-head">
             <span class="step-num">3</span>
-            <div>
-              <h3>Reference drawing <span class="tag tag-optional">optional</span></h3>
-              <p class="muted">A known-good copy of the <em>same</em> project.
-                Without it the terminal (&ldquo;TR&rdquo;) check is
-                <strong>skipped</strong> — never reported as a pass.</p>
-            </div>
-          </div>
-          <div class="drop" data-drop="ref">
-            <input type="file" id="ref" webkitdirectory directory multiple hidden>
-            <div class="drop-inner">
-              <span class="drop-icon">▤</span>
-              <span class="drop-label"><button type="button" class="linkish" data-pick="ref">Choose the reference .edb folder</button></span>
-              <span class="drop-file" data-file="ref"></span>
-            </div>
-          </div>
-        </li>
-
-        <li class="step" data-step="4">
-          <div class="step-head">
-            <span class="step-num">4</span>
             <div>
               <h3>Drawing PDF <span class="tag tag-optional">optional</span></h3>
               <p class="muted">Kept alongside the results so you can open the sheet a finding sits on.</p>
@@ -144,10 +118,12 @@
             </div>
           </div>
         </li>
+        <li class="run-cell">
+          <button type="submit" id="run" class="btn btn-primary btn-lg" disabled>Run verification</button>
+        </li>
       </ol>
 
       <p id="job-error" class="form-error" role="alert" hidden></p>
-      <button type="submit" id="run" class="btn btn-primary btn-lg" disabled>Run verification</button>
     </form>
 
     <section id="recent" hidden>
@@ -183,6 +159,7 @@
 
   <div class="results-shell">
     <div id="stats" class="stats"></div>
+    <p id="ai-note" class="ai-note" hidden></p>
     <div id="empty" class="empty" hidden>
       <div class="empty-mark">✓</div>
       <h2>Nothing to report</h2>
@@ -208,6 +185,6 @@
   </div>
 </section>
 
-<script type="module" src="/app.js?v=11"></script>
+<script type="module" src="/app.js?v=16"></script>
 </body>
 </html>

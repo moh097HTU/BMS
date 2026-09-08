@@ -27,18 +27,26 @@ WHERE IT SITS
 
 CONFIG (environment only - never hard-code a key)
     GEMINI_API_KEY   required to actually call Gemini
-    GEMINI_MODEL     default "gemini-3.8-flash"
+    GEMINI_MODEL     default "gemini-3.5-flash"
     GEMINI_TIMEOUT   per-request timeout in seconds (default 60)
 """
 
 import json
 import os
+import sys
+import time
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 MAX_GEMINI_ATTEMPTS = 2
+
+
+class AIReviewUnavailable(RuntimeError):
+    """Expected, non-alarming reasons the AI review cannot run: no API key, or
+    the google-genai package is not installed. The caller logs these as a plain
+    one-liner rather than a traceback - they are configuration, not a fault."""
 
 
 def _timeout_seconds():
@@ -616,15 +624,45 @@ def reorder_result_to_input(result: AnalysisResult,
     return result
 
 
+# Transient Gemini errors worth a short backoff: server busy (503), quota spike
+# (429), server error (500). Everything else (auth, bad model) is permanent.
+_TRANSIENT_CODES = {429, 500, 503}
+_MAX_TRANSIENT_RETRIES = 3
+
+
+def _call_gemini_with_retry(client, groups, model_name, validation_feedback,
+                            genai_errors):
+    delay = 2.0
+    for attempt in range(1, _MAX_TRANSIENT_RETRIES + 1):
+        try:
+            return _call_gemini(client, groups, model_name, validation_feedback)
+        except genai_errors.APIError as exc:
+            code = getattr(exc, "code", None)
+            if code in _TRANSIENT_CODES and attempt < _MAX_TRANSIENT_RETRIES:
+                sys.stdout.write(
+                    f"Gemini {code} (busy); retrying in {delay:.0f}s...\n")
+                sys.stdout.flush()
+                time.sleep(delay)
+                delay = min(delay * 2, 30)
+                continue
+            raise
+
+
 def analyze_groups_with_gemini(groups: list[dict],
                                model_name: str = MODEL_NAME) -> AnalysisResult:
+    # GEMINI_API_KEY env var wins; otherwise the key hard-coded here is used.
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not set; skipping AI review.")
+        raise AIReviewUnavailable("GEMINI_API_KEY is not set")
 
-    from google import genai
-    from google.genai import types
+    try:
+        from google import genai
+        from google.genai import types
+        from google.genai import errors as genai_errors
+    except ImportError as exc:
+        raise AIReviewUnavailable("google-genai is not installed") from exc
 
     validation_feedback: Optional[str] = None
     last_error: Optional[Exception] = None
@@ -632,8 +670,17 @@ def analyze_groups_with_gemini(groups: list[dict],
     http_options = types.HttpOptions(timeout=int(_timeout_seconds() * 1000))
     with genai.Client(api_key=api_key, http_options=http_options) as client:
         for attempt in range(1, MAX_GEMINI_ATTEMPTS + 1):
-            result = _call_gemini(client, groups, model_name,
-                                  validation_feedback)
+            try:
+                result = _call_gemini_with_retry(
+                    client, groups, model_name, validation_feedback,
+                    genai_errors)
+            except genai_errors.APIError as exc:
+                # permanent config problem (leaked/invalid key, unknown model):
+                # not a bug, log one clean line rather than a traceback.
+                code = getattr(exc, "code", "?")
+                message = getattr(exc, "message", str(exc))
+                raise AIReviewUnavailable(
+                    f"Gemini API error {code}: {message}") from exc
             try:
                 validate_analysis_result(result, groups)
                 return reorder_result_to_input(result, groups)
