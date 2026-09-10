@@ -14,3 +14,9 @@ py7zr
 # AI review of the findings queue (core/recommend.py). Optional at runtime:
 # without GEMINI_API_KEY the app still runs and reports ai_status="unavailable".
 google-genai
+
+# Reads GEMINI_* out of a local .env. Only needed for local development - a
+# deployment injects the same variables as real environment variables - but
+# core/recommend.py imported it without declaring it, so AI review failed on
+# every clean install. It is optional there now; this keeps the local path working.
+python-dotenv

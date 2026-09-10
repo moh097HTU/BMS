@@ -1,0 +1,82 @@
+# Render blueprint for the BMS drawing verifier.
+#
+# One web service, ONE uvicorn process, on the free plan.
+#
+# The single process is not an oversight. Login sessions (api/app.py::_sessions)
+# and the job list (api/jobs.py::_jobs) are module-level dicts, so a second
+# process - a second --workers, or a second instance - would be a second copy of
+# both: a browser could sign in against one and then poll a job on the other,
+# which has never heard of either. Verification concurrency comes from the
+# thread pool inside the one process (BMS_MAX_WORKERS), not from more processes.
+#
+# Set before the first deploy, in the Render dashboard:
+#   users.csv        Environment -> Secret Files (native services also get it in
+#                    the service root, which is where api/auth.py looks)
+#   GEMINI_API_KEY   Environment -> Environment Variables, if you want AI review
+#
+# region cannot be changed on an existing service - pick it now.
+
+services:
+  - type: web
+    name: bms-drawing-verifier
+    runtime: python
+    region: frankfurt
+
+    # Measured on the data/ fixtures: uvicorn idles at 58 MB, one verification
+    # (target + reference) peaks around 130 MB, two concurrent around 200 MB.
+    # run_verification reads the target and the reference in sequence, not
+    # together, so a run costs about one Function.eod - roughly 70 MB here.
+    # 512 MB is therefore enough for THIS project size. Scale the estimate with
+    # your largest Function.eod: the delta tracks the file.
+    #
+    # To move up later: plan 1c-2g (2 GB, $25/mo) or 2c-4g (4 GB, $85/mo), and
+    # re-add the `disk:` block below - free services cannot attach one.
+    plan: free
+    numInstances: 1
+
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn api.app:app --host 0.0.0.0 --port $PORT --workers 1
+
+    # Serves web/index.html and needs no session, so it is a real liveness check.
+    healthCheckPath: /
+
+    # No disk: the free plan cannot attach one, so jobs/ is ephemeral and is
+    # wiped on every spin-down, restart and deploy.
+    #
+    # That costs less than it sounds like, because the job REGISTRY is already
+    # in memory (api/jobs.py::_jobs). After any restart _jobs is empty, so
+    # /api/jobs/{id} 404s on every previous job whether or not its files
+    # survived. A disk only starts paying for itself alongside a startup scan
+    # that rebuilds _jobs from the findings.json left in each directory.
+    #
+    # On a paid plan, uncomment - api/jobs.py resolves JOBS_ROOT relative to the
+    # repo root, and Render runs native Python services from
+    # /opt/render/project/src, so the mount lands exactly on it:
+    #
+    # disk:
+    #   name: bms-jobs
+    #   mountPath: /opt/render/project/src/jobs
+    #   sizeGB: 10
+
+    envVars:
+      # Major.minor, so Render resolves the latest patch it actually ships.
+      # Pinning an exact patch fails the build the day it is not in the catalog.
+      - key: PYTHON_VERSION
+        value: "3.14"
+
+      # One at a time. RAM is not the reason here - two runs fit in 512 MB - the
+      # free plan's 0.1 CPU is. A run that takes ~2 s on a workstation is tens
+      # of seconds at that share, and two at once would divide it further.
+      # Raise this when you raise the plan.
+      - key: BMS_MAX_WORKERS
+        value: "1"
+
+      # Harmless while jobs/ is ephemeral, and already correct for the day a
+      # disk is attached: nothing else ever deletes a job directory, and each
+      # one holds the uploads as well as the artifacts.
+      - key: BMS_JOB_RETENTION_DAYS
+        value: "30"
+
+      # Left to the dashboard so the key never lands in git.
+      - key: GEMINI_API_KEY
+        sync: false

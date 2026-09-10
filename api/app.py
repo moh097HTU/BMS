@@ -26,6 +26,7 @@ import secrets
 import shutil
 import sys
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -49,7 +50,17 @@ SESSION_TTL = 12 * 3600
 # Uploads are whole EPLAN members; Function.eod runs to tens of MB.
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 
-app = FastAPI(title="BMS Drawing Verifier", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(app):
+    # Off unless BMS_JOB_RETENTION_DAYS is set. The job list is in memory and
+    # empty at this point, so there is nothing live to delete - only the
+    # leavings of previous runs, which nothing else ever removes.
+    jobs_mod.sweep_old_jobs()
+    yield
+
+
+app = FastAPI(title="BMS Drawing Verifier", docs_url=None, redoc_url=None,
+              lifespan=lifespan)
 
 _sessions = {}
 

@@ -22,10 +22,15 @@ Each job owns a directory under jobs/, which is also where the uploads land:
 
 Jobs are in-memory state plus that directory: restarting the server forgets the
 job list but keeps every artifact on disk.
+
+Nothing removes a job directory during normal running, so on a host with a
+fixed-size disk set BMS_JOB_RETENTION_DAYS and sweep_old_jobs() will drop the
+old ones at startup. It is off by default.
 """
 
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -38,8 +43,18 @@ from core.eplan_verify import TOTAL_STAGES, run_verification
 from core.findings import build_findings
 from core.render import findings_lines, result_lines
 
-MAX_WORKERS = 2
+# Concurrency costs RAM, not CPU (see the module docstring), so it is the knob
+# you turn to fit the host: one worker holds one target + one reference
+# Function.eod, and each of those runs to tens of MB. Overridable so a
+# deployment can match it to the box without a code change. Default unchanged.
+MAX_WORKERS = int(os.environ.get("BMS_MAX_WORKERS", "2"))
 MAX_JOBS_REMEMBERED = 200
+
+# Delete job directories older than this many days at startup. 0 disables the
+# sweep, which is the default and what a developer's machine wants. A
+# deployment with a fixed-size disk should set it: nothing else ever removes a
+# job directory, and each one holds the uploads as well as the artifacts.
+JOB_RETENTION_DAYS = int(os.environ.get("BMS_JOB_RETENTION_DAYS", "0"))
 
 JOBS_ROOT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "jobs")
@@ -177,6 +192,41 @@ def _log(job_id, lines):
     header = f"--- job {job_id} ---"
     sys.stdout.write("\n".join([header] + list(lines)) + "\n")
     sys.stdout.flush()
+
+
+def sweep_old_jobs(days=None):
+    """Delete job directories last modified more than `days` days ago.
+
+    Called once at startup. The job list is in memory and starts empty, so
+    there is never a live job to delete at that point; the only thing on disk
+    is the leavings of previous runs. Returns the number removed.
+
+    Failures are reported and skipped, never raised: a directory that cannot be
+    removed is a full disk's problem tomorrow, not a reason to refuse to start.
+    """
+    days = JOB_RETENTION_DAYS if days is None else days
+    if days <= 0 or not os.path.isdir(JOBS_ROOT):
+        return 0
+
+    cutoff = time.time() - days * 86400
+    removed = 0
+    for name in os.listdir(JOBS_ROOT):
+        path = os.path.join(JOBS_ROOT, name)
+        if not os.path.isdir(path):
+            continue
+        try:
+            if os.path.getmtime(path) >= cutoff:
+                continue
+            shutil.rmtree(path)
+            removed += 1
+        except OSError as exc:
+            sys.stdout.write(f"--- could not remove {path}: {exc} ---\n")
+    if removed:
+        sys.stdout.write(
+            f"--- removed {removed} job director"
+            f"{'y' if removed == 1 else 'ies'} older than {days} days ---\n")
+        sys.stdout.flush()
+    return removed
 
 
 def read_artifact(job_id, name):

@@ -650,9 +650,15 @@ def _call_gemini_with_retry(client, groups, model_name, validation_feedback,
 
 def analyze_groups_with_gemini(groups: list[dict],
                                model_name: str = MODEL_NAME) -> AnalysisResult:
-    # GEMINI_API_KEY env var wins; otherwise the key hard-coded here is used.
-    from dotenv import load_dotenv
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+    # A real environment variable always wins. The .env file is the local
+    # development convenience; a deployment sets the variable itself and has no
+    # .env, so python-dotenv missing is not a failure - just skip the file.
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        pass
+    else:
+        load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise AIReviewUnavailable("GEMINI_API_KEY is not set")
